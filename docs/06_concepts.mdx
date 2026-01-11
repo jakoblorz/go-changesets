@@ -1,0 +1,72 @@
+---
+title: Concepts and Project Model
+description: How go-changeset discovers projects, stores versions, and formats tags.
+---
+
+# Concepts and Project Model
+
+This page describes the key concepts used by `go-changeset` so you can reason about what the CLI does and how to integrate it into your repo.
+
+## Workspace detection
+
+`go-changeset` looks for a **workspace root** by walking up from the current working directory until it finds a `go.work`.
+
+## Projects
+
+A **project** is the unit of versioning and releasing.
+
+- **Go projects** are discovered by locating `go.mod` files referenced by `go.work`.
+
+Each project has:
+
+- `name`: derived from the module/package name (deduped if needed)
+- `root`: the project root directory
+
+## Changesets
+
+A **changeset** is a Markdown file in `.changeset/` with YAML frontmatter.
+
+Example:
+
+```md
+---
+auth: minor
+---
+
+Add OAuth2 support
+```
+
+### Human-friendly filenames
+
+Changesets are stored as `.changeset/{id}.md`, where `{id}` is generated to be easy to refer to in conversations:
+
+- `{adjective}_{animal}_{nanoid}`
+- Example: `dazzling_mouse_V1StGXR8.md`
+
+## Version storage
+
+- Projects store their version in `version.txt` at the project root.
+
+### Disabling Go projects
+
+To hide a Go project from `go-changeset`, set its `version.txt` to `false`:
+
+```bash
+echo "false" > path/to/project/version.txt
+```
+
+## Git tags
+
+Published versions are represented by git tags:
+
+- Final releases: `{project}@v{version}` (example: `auth@v1.2.3`)
+- Snapshots/RCs: `{project}@v{version}-rc{N}` (example: `auth@v1.3.0-rc1`)
+
+## Changelogs
+
+`go-changeset` generates/updates `CHANGELOG.md` files per project.
+
+- The `changelog` command prints the entry that would be added (preview)
+- The `version` command appends a new entry and consumes changesets
+
+You can customize formatting by placing a `.changeset/changelog.tmpl` template in your repo or project tree.

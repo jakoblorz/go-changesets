@@ -1,0 +1,96 @@
+---
+title: CLI Reference
+description: Command overview and common usage patterns.
+---
+
+# CLI Reference
+
+`go-changeset` installs the `changeset` binary.
+
+## `changeset` / `changeset add`
+
+Create changesets interactively.
+
+```bash
+changeset
+# or
+changeset add
+```
+
+Creates one `.changeset/*.md` file per selected project.
+
+## `changeset changelog`
+
+Preview changelog content for a project without modifying files.
+
+```bash
+changeset changelog --project auth
+```
+
+## `changeset version`
+
+Apply all pending changesets for a project:
+
+- bumps the project version
+- appends to `CHANGELOG.md`
+- deletes the consumed changeset files
+
+```bash
+changeset version --project auth
+```
+
+Optional PR enrichment in changelog entries:
+
+```bash
+changeset version --project auth --owner myorg --repo myrepo
+```
+
+## `changeset publish`
+
+Create a git tag and GitHub release for a project if `version.txt` is newer than the latest published tag.
+
+```bash
+export GITHUB_TOKEN=...
+changeset publish --project auth --owner myorg --repo myrepo
+```
+
+## `changeset snapshot`
+
+Create a release candidate tag and GitHub *pre-release* without modifying files.
+
+```bash
+export GITHUB_TOKEN=...
+changeset snapshot --project auth --owner myorg --repo myrepo
+```
+
+## `changeset each`
+
+Run a command for each project matching filters.
+
+```bash
+# Version all projects with pending changesets
+changeset each --filter=open-changesets -- changeset version
+
+# Publish all outdated projects
+changeset each --filter=outdated-versions -- \
+  changeset publish --owner myorg --repo myrepo
+```
+
+### Filters
+
+- `all`
+- `open-changesets`
+- `outdated-versions`
+- `has-version`
+- `no-version`
+- `unchanged`
+
+## `changeset tree`
+
+Group changesets by the commit that introduced them.
+
+```bash
+changeset tree
+changeset tree --filter open-changesets
+changeset tree --format json
+```

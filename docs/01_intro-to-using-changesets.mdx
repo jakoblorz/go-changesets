@@ -1,0 +1,734 @@
+---
+title: Introduction to Using Changesets
+description: Core concepts and the basic go-changeset workflow.
+---
+
+# Introduction to Using Changesets
+
+Changesets provide a streamlined workflow for managing versions and releases in Go monorepos. This guide explains the core concepts and how to integrate changesets into your development workflow.
+
+## What are Changesets?
+
+Changesets are a way to **declare intent about releases at the time you make changes**, rather than scrambling to remember what changed when it's time to release. 
+
+Each changeset is a small markdown file that captures:
+1. **What projects** are affected
+2. **How significant** the changes are (patch/minor/major)
+3. **What changed** in human-readable form
+
+Think of changesets as "release notes in progress" that accumulate in your repository until you're ready to create a release.
+
+## Why Changesets for Go Monorepos?
+
+### The Problem
+
+In a monorepo with multiple Go projects, managing releases is challenging:
+
+- **Forgotten changes** - What changed since the last release?
+- **Version confusion** - Which projects need new versions?
+- **Changelog chaos** - Manually writing changelog entries is error-prone
+- **Coordination overhead** - Multiple projects releasing at different times
+- **CI/CD complexity** - Determining what to release automatically
+
+### The Changeset Solution
+
+Changesets solve these problems by:
+
+✅ **Capturing intent at development time** - Developers document changes as they make them  
+✅ **Enabling independent project releases** - Each project can be versioned separately  
+✅ **Automating changelog generation** - Changeset messages become changelog entries  
+✅ **Simplifying CI/CD** - Clear signals for what needs releasing  
+✅ **Supporting review workflows** - Changesets are reviewable just like code
+
+## The Three-Phase Workflow
+
+### Phase 1: Add Changesets (Developers)
+
+When you make changes to your code, you add a changeset:
+
+```bash
+# Make your code changes
+vim packages/auth/handler.go
+
+# Document the changes
+changeset add
+# Select: auth
+# Bump: minor
+# Message: "Add OAuth2 authentication support"
+
+# Commit together
+git add packages/auth/ .changeset/
+git commit -m "feat: add OAuth2 to auth package"
+```
+
+**Who:** Individual developers on feature branches  
+**When:** With every significant code change  
+**Output:** `.changeset/*.md` files committed to your branch
+
+### Phase 2: Version Projects (via PR or Manual)
+
+When you're ready to release, changesets are consumed and turned into version updates:
+
+```bash
+# Version a specific project
+changeset version --project auth
+
+# Or version all projects with changesets
+changeset each --filter open-changesets -- changeset version
+```
+
+This updates:
+- `packages/auth/version.txt` → `0.2.0` (new version)
+- `packages/auth/CHANGELOG.md` → Adds entry with changeset messages
+- `.changeset/` → Consumed changeset files are deleted
+
+**Who:** Maintainers or CI/CD automation  
+**When:** When ready to create a release  
+**Output:** Updated version.txt, CHANGELOG.md, deleted changesets
+
+### Phase 3: Publish Releases (Automatic via CI)
+
+After versioning, projects are published to GitHub:
+
+```bash
+changeset publish --project auth --owner yourorg --repo yourrepo
+```
+
+This creates:
+- Git tag: `auth@v0.2.0`
+- GitHub release with changelog notes
+- Downloads available for users
+
+**Who:** CI/CD automation (or manual for local testing)  
+**When:** After version PR is merged to main  
+**Output:** GitHub releases and git tags
+
+## Key Concepts
+
+### Source of Truth: Two Versions
+
+`go-changeset` maintains two separate version states:
+
+```
+┌─────────────────────────────────────────────┐
+│           SOURCE OF TRUTH                   │
+├─────────────────────────────────────────────┤
+│  version.txt (branch) = Staged version      │
+│  git tags (main)     = Published version    │
+└─────────────────────────────────────────────┘
+```
+
+**version.txt (Staged):**
+- Lives in your project root
+- Updated by `changeset version`
+- Represents "next version to be released"
+- Exists on feature branches and PR branches
+- Not yet publicly released
+
+**git tags (Published):**
+- Created by `changeset publish`
+- Format: `{project}@v{version}`
+- Only exist on main branch after release
+- Represent "currently published versions"
+- Source of truth for what's released
+
+**Example flow:**
+```
+1. version.txt: 0.1.0, git tag: (none)
+   → No releases yet
+
+2. Add changeset, run version
+   → version.txt: 0.2.0, git tag: (none)
+   → Staged for release
+
+3. Merge version PR, run publish
+   → version.txt: 0.2.0, git tag: auth@v0.2.0
+   → Now published!
+```
+
+### Independent Project Versioning
+
+Each project in your monorepo has its own independent version:
+
+```
+monorepo/
+├── packages/
+│   ├── auth/
+│   │   └── version.txt → 1.5.0
+│   ├── api/
+│   │   └── version.txt → 0.3.2
+│   └── shared/
+│       └── version.txt → 2.1.0
+```
+
+**Benefits:**
+- Projects can release on different schedules
+- Stable projects don't get unnecessary version bumps
+- Breaking changes in one project don't affect others
+- Clear versioning per project
+
+**Example:**
+If you fix a bug in `auth`, only `auth` gets a patch bump:
+- auth: 1.5.0 → 1.5.1 ✅
+- api: 0.3.2 → 0.3.2 (unchanged)
+- shared: 2.1.0 → 2.1.0 (unchanged)
+
+### Semantic Versioning
+
+All version changes follow [semver](https://semver.org/) rules:
+
+```
+MAJOR.MINOR.PATCH
+  │     │     │
+  │     │     └─ Bug fixes (backward compatible)
+  │     └─────── New features (backward compatible)
+  └───────────── Breaking changes
+```
+
+**go-changeset automatically:**
+- Determines the highest bump type from all changesets
+- Applies the correct semver bump
+- Maintains proper version ordering
+
+**Example:**
+If you have changesets with:
+- 2× patch bumps
+- 1× minor bump
+
+Result: **Minor bump wins** (minor > patch)
+
+### Changesets Stack and Accumulate
+
+Multiple changesets for the same project accumulate until you run `version`:
+
+```
+.changeset/
+  ├── dazzling_mouse_abc123.md   → auth: patch
+  ├── cheerful_panda_def456.md   → auth: minor
+  └── gentle_turtle_ghi789.md    → auth: patch
+```
+
+When you run `changeset version --project auth`:
+- **Bump type:** minor (highest of patch, minor, patch)
+- **Changelog:** All three messages appear grouped by type
+- **Changesets:** All three files deleted (consumed)
+
+### The `each` Command: Batch Operations
+
+The `changeset each` command runs a command for multiple projects:
+
+```bash
+changeset each --filter open-changesets -- changeset version
+```
+
+**What it does:**
+1. Finds all projects matching the filter
+2. For each project, runs the command
+3. Sets environment variables (`$PROJECT`, `$PROJECT_PATH`, etc.)
+4. Provides isolation between iterations
+
+**Available filters:**
+- `open-changesets` - Projects with changesets
+- `outdated-versions` - Projects where version.txt > git tag (ready to publish)
+- `has-version` - Projects with version.txt file
+- `no-version` - Projects without version.txt
+- `all` - All projects (default)
+
+**Environment variables set:**
+```bash
+$PROJECT              # "auth"
+$PROJECT_PATH         # "/path/to/packages/auth"
+$CURRENT_VERSION      # "1.5.0"
+$LATEST_TAG           # "1.4.2"
+$CHANGELOG_PREVIEW    # "### Minor Changes\n\n- Add OAuth2..."
+$CHANGESET_CONTEXT    # Full JSON context
+```
+
+## Complete Example Workflow
+
+Let's walk through a complete release cycle:
+
+### 1. Development: Add Features
+
+```bash
+# Developer A: Work on auth package
+git checkout -b feature/oauth2
+
+# Make changes
+vim packages/auth/oauth.go
+
+# Add changeset
+changeset add
+# Select: auth
+# Bump: minor
+# Message: "Add OAuth2 authentication support"
+
+# Commit
+git add .
+git commit -m "feat: add OAuth2 to auth"
+git push origin feature/oauth2
+```
+
+### 2. Review: Merge to Main
+
+```bash
+# Create PR, get approval, merge to main
+# Your changeset is now in main's .changeset/ directory
+```
+
+### 3. Versioning: Create Version PR (CI or Manual)
+
+**Option A: Automatic via CI (recommended)**
+```yaml
+# GitHub Actions automatically runs:
+changeset each --filter open-changesets -- changeset version
+# Creates a PR with version.txt and CHANGELOG.md updates
+```
+
+**Option B: Manual**
+```bash
+# Maintainer runs locally
+changeset version --project auth
+
+# Review changes
+git diff packages/auth/version.txt    # 0.1.0 → 0.2.0
+git diff packages/auth/CHANGELOG.md   # New entry added
+
+# Commit
+git add packages/auth/
+git commit -m "chore: version auth to 0.2.0"
+git push origin main
+```
+
+### 4. Publishing: Create GitHub Release (CI or Manual)
+
+**Option A: Automatic via CI (recommended)**
+```yaml
+# GitHub Actions detects version.txt > git tag and runs:
+changeset publish --project auth --owner yourorg --repo yourrepo
+# Creates git tag and GitHub release
+```
+
+**Option B: Manual**
+```bash
+export GITHUB_TOKEN=your_token
+
+changeset publish --project auth --owner yourorg --repo yourrepo
+# Creates: auth@v0.2.0 tag and GitHub release
+```
+
+### 5. Result: Published Release
+
+Your users can now:
+```bash
+# See the GitHub release
+https://github.com/yourorg/yourrepo/releases/tag/auth@v0.2.0
+
+# Use the new version
+go get github.com/yourorg/yourrepo/packages/auth@v0.2.0
+```
+
+## Preview Changes Before Releasing
+
+Before running `changeset version`, you can preview what will be added to CHANGELOG.md:
+
+```bash
+# Preview for specific project
+changeset changelog --project auth
+
+# Output:
+### Minor Changes
+
+- Add OAuth2 authentication support
+```
+
+This is useful for:
+- Reviewing changes before versioning
+- Including in PR descriptions (via `$CHANGELOG_PREVIEW` env var)
+- Generating release notes in CI
+
+## Differences from JavaScript @changesets/cli
+
+If you're familiar with the JavaScript version, here are the key differences:
+
+| Feature | JavaScript | go-changeset |
+|---------|-----------|--------------|
+| **Project detection** | package.json | go.mod files |
+| **Workspace file** | package.json workspaces | go.work |
+| **Version storage** | package.json "version" | version.txt file |
+| **Publishing** | npm registry | GitHub releases |
+| **Dependency bumping** | Automatic | Manual (Go modules) |
+| **Command scope** | All projects | Per-project (--project flag) |
+| **Changeset files** | One file for all projects | One file per project |
+| **Bump selection** | Per-project in one file | Same bump for all selected |
+| **Tag format** | v1.2.3 | project@v1.2.3 |
+| **CLI interface** | Basic prompts | Modern Bubble Tea TUI |
+
+## Commands Quick Reference
+
+```bash
+# Add a changeset (interactive)
+changeset add
+
+# Preview changelog for a project
+changeset changelog --project auth
+
+# Version a specific project
+changeset version --project auth
+
+# Version all projects with changesets
+changeset each --filter open-changesets -- changeset version
+
+# Publish a project
+changeset publish --project auth --owner org --repo repo
+
+# Publish all outdated projects
+changeset each --filter outdated-versions -- \
+  changeset publish --owner org --repo repo
+
+# Create a release candidate snapshot
+changeset snapshot --project auth --owner org --repo repo
+
+# Run custom commands for filtered projects
+changeset each --filter has-version -- bash -c 'echo "$PROJECT: v$CURRENT_VERSION"'
+```
+
+## Disabling Projects
+
+You can exclude projects from versioning by setting their `version.txt` to `false`:
+
+```bash
+echo "false" > packages/internal-tools/version.txt
+```
+
+The project becomes **completely invisible** to go-changeset:
+- Won't appear in `changeset add` selection
+- Skipped by all `changeset each` filters
+- Can't be versioned or published
+- Still part of Go workspace (go.work)
+
+**Use cases:**
+- Internal tools not meant for public release
+- Example/demo projects
+- Work-in-progress projects
+- Test fixtures
+
+**Re-enable:** Simply replace "false" with a version like "0.0.0"
+
+## When to Version and Publish
+
+### Versioning Strategy
+
+**Continuous (Recommended for most teams):**
+- Version after every merged changeset (via CI)
+- Creates version PR automatically
+- Merge when ready to release
+- Predictable, automated workflow
+
+**Batched (For coordinated releases):**
+- Accumulate multiple changesets
+- Version when ready for release
+- All changes released together
+- More control, more manual work
+
+**Mixed (Best of both):**
+- Some projects versioned continuously
+- Others batched for major milestones
+- Use filters to control: `--filter open-changesets`
+
+### Publishing Strategy
+
+**Automatic (Recommended):**
+- Publish immediately after version PR merge
+- Users get releases as soon as approved
+- Minimal delay from code to release
+
+**Manual:**
+- Review releases before publishing
+- Useful for coordinated multi-project releases
+- More control, slower feedback
+
+## Best Practices
+
+### 1. Add Changesets with Every Significant Change
+
+```bash
+# ✅ Good: Add changeset with feature
+git checkout -b feature/new-endpoint
+# ... make changes ...
+changeset add
+git add .
+git commit -m "feat: add new API endpoint"
+
+# ❌ Bad: Forget changeset
+git commit -m "feat: add new API endpoint"  # Oops, forgot changeset!
+# Later: "What was that change again?"
+```
+
+**Tip:** Make it a habit to run `changeset add` before committing significant changes.
+
+### 2. Write Clear, Detailed Messages
+
+Your changeset message becomes the changelog entry that users read:
+
+```markdown
+✅ Good:
+Add OAuth2 authentication support
+
+This adds OAuth2 authentication with support for Google 
+and GitHub providers. The old BasicAuth method is now 
+deprecated but still works for backward compatibility.
+
+New features:
+- OAuth2Config for provider configuration
+- Automatic token refresh
+- Session management
+
+Migration guide: docs/oauth2-migration.md
+
+❌ Bad:
+Auth updates
+```
+
+### 3. Use Appropriate Bump Types
+
+```bash
+# ✅ Correct: Bug fix = patch
+changeset add
+# Select: auth, Bump: patch
+# Message: "Fix memory leak in session cleanup"
+
+# ❌ Wrong: Bug fix marked as major
+changeset add  
+# Select: auth, Bump: major  # Too aggressive!
+# Message: "Fix memory leak"
+```
+
+**When in doubt:**
+- Does it break existing code? → **major**
+- Does it add new functionality? → **minor**
+- Does it just fix bugs? → **patch**
+
+### 4. One Changeset Per Logical Change
+
+```bash
+# ✅ Good: Separate changesets for separate concerns
+changeset add  # "Add OAuth2 support" (minor)
+changeset add  # "Fix session leak" (patch)
+
+# ❌ Bad: Mixing unrelated changes
+changeset add  # "Add OAuth2 and fix bugs and update docs" (confusing!)
+```
+
+**Exception:** If changes are tightly coupled (like updating both a client and server for the same feature), one changeset is fine.
+
+### 5. Review Changesets in PRs
+
+Treat changesets as part of code review:
+
+```markdown
+**In PR review:**
+- ✅ Check changeset files are included
+- ✅ Verify bump type is appropriate
+- ✅ Review changelog message quality
+- ✅ Ensure all affected projects are listed
+```
+
+## Advanced Usage
+
+### Preview Changes Before Versioning
+
+```bash
+# See what will be added to CHANGELOG.md
+changeset changelog --project auth
+
+# Output:
+### Minor Changes
+
+- Add OAuth2 authentication support
+
+### Patch Changes
+
+- Fix session memory leak
+```
+
+**Use cases:**
+- Review before running version
+- Generate release notes manually
+- Include in PR descriptions
+
+### Handling Multiple Projects
+
+If your change affects multiple projects:
+
+```bash
+changeset add
+# Select: auth, api, shared (all affected)
+# Bump: minor
+# Message: "Add distributed session support"
+```
+
+This creates **three separate changeset files**:
+- `.changeset/dazzling_mouse_abc123.md` (auth: minor)
+- `.changeset/cheerful_panda_def456.md` (api: minor)  
+- `.changeset/gentle_turtle_ghi789.md` (shared: minor)
+
+**Benefits:**
+- Each project can be versioned independently
+- If you only want to release `auth`, run: `changeset version --project auth`
+- The `api` and `shared` changesets remain for later
+
+### Skipping Projects from Releases
+
+If a project shouldn't participate in versioning:
+
+```bash
+# Disable the project
+echo "false" > packages/internal/version.txt
+
+# It disappears from changeset add selection
+changeset add  # "internal" won't appear in the list
+```
+
+### Batch Operations with Filters
+
+```bash
+# Version only projects with changesets
+changeset each --filter open-changesets -- changeset version
+
+# Publish only projects that need publishing
+changeset each --filter outdated-versions -- changeset publish --owner org --repo repo
+
+# Run custom scripts
+changeset each --filter has-version -- bash -c 'echo "$PROJECT is at v$CURRENT_VERSION"'
+```
+
+## Local Development Workflow
+
+Here's a typical day-in-the-life workflow:
+
+```bash
+# Morning: Start new feature
+git checkout -b feature/rate-limiting
+vim packages/api/middleware.go
+# ... implement rate limiting ...
+
+# Add changeset
+changeset add
+# Select: api
+# Bump: minor (new feature)
+# Message: "Add rate limiting middleware"
+
+# Commit and push
+git add .
+git commit -m "feat: add rate limiting"
+git push origin feature/rate-limiting
+
+# Create PR → get reviewed → merge to main
+
+# CI automatically:
+# 1. Creates version PR for api
+# 2. You review and merge version PR
+# 3. CI publishes api@v0.4.0 release
+
+# Done! Users can now use the new version
+```
+
+## Common Workflows
+
+### Hotfix Workflow
+
+```bash
+# Critical bug discovered in production
+git checkout -b hotfix/auth-crash
+vim packages/auth/handler.go  # Fix the bug
+
+# Add changeset with patch bump
+changeset add
+# Select: auth
+# Bump: patch (it's a bug fix)
+# Message: "Fix crash when parsing malformed tokens"
+
+# Fast-track through review
+git add .
+git commit -m "fix: prevent crash on malformed tokens"
+git push
+
+# Create PR, mark as urgent, merge quickly
+# CI creates version PR → review → merge → publish
+# New version released within minutes!
+```
+
+### Multi-Project Feature
+
+```bash
+# Feature that spans multiple projects
+git checkout -b feature/graphql
+
+vim packages/api/graphql.go      # GraphQL server
+vim packages/client/graphql.go   # GraphQL client  
+vim packages/shared/schema.go    # Shared schema
+
+# Single changeset for all three
+changeset add
+# Select: api, client, shared
+# Bump: minor (new feature)
+# Message: "Add GraphQL support with schema validation"
+
+# All three projects get the same changeset
+# They can be versioned together or independently later
+```
+
+### Coordinated Release
+
+```bash
+# You have changes ready for multiple projects
+# Want to release them all at once
+
+# Version all at once
+changeset each --filter open-changesets -- changeset version
+
+# Review all version changes
+git diff packages/*/version.txt
+git diff packages/*/CHANGELOG.md
+
+# Commit together
+git add .
+git commit -m "chore: version multiple projects"
+
+# Merge to main
+# CI publishes all updated projects together
+```
+
+## Next Steps
+
+Now that you understand the core concepts:
+
+1. **For Contributors:** Learn [how to add changesets](./adding-a-changeset.mdx) to your PRs
+2. **For Multi-Project Changes:** Understand [changeset groups](./changeset-groups.mdx) and related releases
+3. **For Maintainers:** Set up [GitHub Actions integration](./github-integration.mdx) to automate releases
+4. **For QA Teams:** Learn about [snapshot releases](./snapshotting.mdx) for testing before final releases
+
+## Common Questions
+
+**Q: Do I need a changeset for every commit?**  
+A: No, only for changes that should appear in release notes. Skip changesets for docs, tests, and internal changes.
+
+**Q: Can I edit a changeset after creating it?**  
+A: Yes! Changesets are just markdown files. Edit them directly in `.changeset/` before running `version`.
+
+**Q: What if I forget to add a changeset?**  
+A: Add it in a follow-up commit on the same PR. Or add it later to a separate PR - changesets are flexible.
+
+**Q: How do I handle dependencies between projects?**  
+A: Go modules handle dependencies. Update `go.mod` files and create changesets for affected projects.
+
+**Q: Can I version projects manually without CI?**  
+A: Yes! All commands work locally. CI just automates the workflow.
+
+**Q: What if two PRs both add changesets for the same project?**  
+A: They stack perfectly! Both changesets will be applied when the project is versioned.
+
+---
+
+**Continue to [GitHub Integration](./github-integration.mdx)** to learn how to automate this workflow with GitHub Actions.
