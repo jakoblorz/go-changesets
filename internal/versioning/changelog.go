@@ -9,6 +9,7 @@ import (
 	"text/template"
 	"time"
 
+	"github.com/Masterminds/sprig/v3"
 	"github.com/jakoblorz/go-changesets/internal/filesystem"
 	"github.com/jakoblorz/go-changesets/internal/models"
 )
@@ -51,9 +52,9 @@ func getChangelogTemplate(fs filesystem.FileSystem, projectRoot string) (*templa
 		if readErr != nil {
 			return nil, fmt.Errorf("failed to read changelog template: %w", readErr)
 		}
-		parsed, err = template.New("changelog").Parse(string(data))
+		parsed, err = template.New("changelog").Funcs(sprig.TxtFuncMap()).Parse(string(data))
 	} else {
-		parsed, err = template.New("changelog").Parse(defaultChangelogTemplate)
+		parsed, err = template.New("changelog").Funcs(sprig.TxtFuncMap()).Parse(defaultChangelogTemplate)
 	}
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse changelog template: %w", err)
