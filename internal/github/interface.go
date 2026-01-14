@@ -60,4 +60,5 @@ type PullRequest struct {
 	State          string
 	Merged         bool
 	MergeCommitSHA string
+	Labels         []string
 }

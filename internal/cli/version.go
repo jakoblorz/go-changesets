@@ -143,10 +143,13 @@ func (c *VersionCommand) enrichChangesetsWithPRInfo(changesets []*models.Changes
 
 	if c.ghClient == nil {
 		token := os.Getenv("GITHUB_TOKEN")
+		if token == "" {
+			token = os.Getenv("GH_TOKEN")
+		}
 		if token != "" {
 			c.ghClient = github.NewClient(token)
 		} else {
-			fmt.Println("⚠️  GITHUB_TOKEN not set; PR enrichment may fail for private/internal repos")
+			fmt.Println("⚠️  GITHUB_TOKEN or GH_TOKEN not set; PR enrichment may fail for private/internal repos")
 			c.ghClient = github.NewClientWithoutAuth()
 		}
 	}

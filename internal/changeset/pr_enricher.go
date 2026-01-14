@@ -59,6 +59,7 @@ func (e *PREnricher) Enrich(ctx context.Context, changesets []*models.Changeset,
 			Title:  pr.Title,
 			URL:    pr.HTMLURL,
 			Author: pr.Author,
+			Labels: pr.Labels,
 		}
 		result.Enriched++
 	}

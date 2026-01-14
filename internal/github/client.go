@@ -130,6 +130,7 @@ func convertPullRequest(pr *github.PullRequest) *PullRequest {
 		HTMLURL: pr.GetHTMLURL(),
 		State:   pr.GetState(),
 		Merged:  pr.GetMerged(),
+		Labels:  extractLabels(pr.Labels),
 	}
 
 	if pr.GetUser() != nil {
@@ -140,5 +141,15 @@ func convertPullRequest(pr *github.PullRequest) *PullRequest {
 		result.MergeCommitSHA = pr.GetMergeCommitSHA()
 	}
 
+	return result
+}
+
+func extractLabels(labels []*github.Label) []string {
+	result := make([]string, 0, len(labels))
+	for _, label := range labels {
+		if label != nil {
+			result = append(result, label.GetName())
+		}
+	}
 	return result
 }
