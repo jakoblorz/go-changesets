@@ -276,7 +276,7 @@ func TestChangelog_FormatEntry_AllBumpTypes(t *testing.T) {
 
 func TestChangelog_CustomTemplateOverride(t *testing.T) {
 	fs := filesystem.NewMockFileSystem()
-	templateContent := "Version: {{.Version}} Sections: {{len .Sections}}"
+	templateContent := "Project: {{.Project}} Version: {{.Version}} Sections: {{len .Sections}}"
 	fs.AddFile("/workspace/.changeset/changelog.tmpl", []byte(templateContent))
 
 	cl := NewChangelog(fs)
@@ -286,11 +286,11 @@ func TestChangelog_CustomTemplateOverride(t *testing.T) {
 		Changesets: []*models.Changeset{},
 	}
 
-	output, err := cl.formatEntry(entry, "/workspace")
+	output, err := cl.formatEntry(entry, "auth", "/workspace")
 	if err != nil {
 		t.Fatalf("formatEntry() error = %v", err)
 	}
-	if output != "Version: 1.2.3 Sections: 0" {
+	if output != "Project: auth Version: 1.2.3 Sections: 0" {
 		t.Fatalf("unexpected template output: %s", output)
 	}
 }

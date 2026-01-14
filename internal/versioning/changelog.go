@@ -16,7 +16,7 @@ import (
 
 const changelogFileName = "CHANGELOG.md"
 
-const defaultChangelogTemplate = `{{- if .Version}}## {{.Version}} ({{.Date}})
+const defaultChangelogTemplate = `{{- if .Version}}## {{if .Project}}{{.Project}}@{{end}}{{.Version}} ({{.Date}})
 {{- end -}}
 {{range $index, $section := .Sections}}### {{$section.Title}}
 {{range $section.Items}}
@@ -100,7 +100,7 @@ type ChangelogEntry struct {
 }
 
 // Append adds a new entry to the changelog
-func (cl *Changelog) Append(projectRoot string, entry *ChangelogEntry) error {
+func (cl *Changelog) Append(projectRoot string, projectName string, entry *ChangelogEntry) error {
 	changelogPath := filepath.Join(projectRoot, changelogFileName)
 
 	var existingContent string
@@ -112,7 +112,7 @@ func (cl *Changelog) Append(projectRoot string, entry *ChangelogEntry) error {
 		existingContent = string(data)
 	}
 
-	newEntry, err := cl.formatEntry(entry, projectRoot)
+	newEntry, err := cl.formatEntry(entry, projectName, projectRoot)
 	if err != nil {
 		return err
 	}
@@ -138,6 +138,7 @@ func (cl *Changelog) Append(projectRoot string, entry *ChangelogEntry) error {
 	}
 
 	buf.WriteString(newEntry)
+	buf.WriteString("\n")
 
 	if strings.Contains(existingContent, "# Changelog") {
 		lines := strings.Split(existingContent, "\n")
@@ -163,8 +164,8 @@ func (cl *Changelog) FormatEntry(changesets []*models.Changeset, projectName, pr
 	return cl.formatWithTemplate(changesets, projectName, projectRoot, "", time.Time{})
 }
 
-func (cl *Changelog) formatEntry(entry *ChangelogEntry, projectRoot string) (string, error) {
-	return cl.formatWithTemplate(entry.Changesets, "", projectRoot, entry.Version.String(), entry.Date)
+func (cl *Changelog) formatEntry(entry *ChangelogEntry, projectName, projectRoot string) (string, error) {
+	return cl.formatWithTemplate(entry.Changesets, projectName, projectRoot, entry.Version.String(), entry.Date)
 }
 
 func (cl *Changelog) formatWithTemplate(changesets []*models.Changeset, projectName, projectRoot, version string, date time.Time) (string, error) {
