@@ -76,7 +76,10 @@ func (c *SnapshotCommand) Run(cmd *cobra.Command, args []string) error {
 	if c.ghClient == nil {
 		token := os.Getenv("GITHUB_TOKEN")
 		if token == "" {
-			return fmt.Errorf("GITHUB_TOKEN environment variable is required")
+			token = os.Getenv("GH_TOKEN")
+		}
+		if token == "" {
+			return fmt.Errorf("GITHUB_TOKEN or GH_TOKEN environment variable required for snapshot")
 		}
 		c.ghClient = github.NewClient(token)
 	}

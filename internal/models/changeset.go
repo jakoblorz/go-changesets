@@ -50,6 +50,9 @@ type PullRequest struct {
 
 	// Author is the GitHub username of the PR author
 	Author string
+
+	// Labels are the labels assigned to the PR
+	Labels []string
 }
 
 // Changeset represents a changeset file with its metadata
