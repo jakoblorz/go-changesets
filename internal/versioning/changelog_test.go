@@ -7,6 +7,7 @@ import (
 
 	"github.com/jakoblorz/go-changesets/internal/filesystem"
 	"github.com/jakoblorz/go-changesets/internal/models"
+	"github.com/stretchr/testify/assert"
 )
 
 func TestChangelog_FormatEntry(t *testing.T) {
@@ -37,7 +38,7 @@ func TestChangelog_FormatEntry(t *testing.T) {
 				},
 			},
 			projectName: "auth",
-			want:        "### Patch Changes\n\n- Fix memory leak",
+			want:        "### Patch Changes\n\n- Fix memory leak\n\n",
 		},
 		{
 			name: "single minor changeset",
@@ -51,7 +52,7 @@ func TestChangelog_FormatEntry(t *testing.T) {
 				},
 			},
 			projectName: "auth",
-			want:        "### Minor Changes\n\n- Add OAuth2 support",
+			want:        "### Minor Changes\n\n- Add OAuth2 support\n\n",
 		},
 		{
 			name: "single major changeset",
@@ -65,7 +66,7 @@ func TestChangelog_FormatEntry(t *testing.T) {
 				},
 			},
 			projectName: "auth",
-			want:        "### Major Changes\n\n- Breaking API change",
+			want:        "### Major Changes\n\n- Breaking API change\n\n",
 		},
 		{
 			name: "multiple changesets grouped by type",
@@ -108,7 +109,9 @@ func TestChangelog_FormatEntry(t *testing.T) {
 ### Patch Changes
 
 - Fix bug 1
-- Fix bug 2`,
+- Fix bug 2
+
+`,
 		},
 		{
 			name: "filters by project name",
@@ -129,7 +132,7 @@ func TestChangelog_FormatEntry(t *testing.T) {
 				},
 			},
 			projectName: "auth",
-			want:        "### Minor Changes\n\n- Auth change",
+			want:        "### Minor Changes\n\n- Auth change\n\n",
 		},
 		{
 			name: "empty project name includes all",
@@ -156,33 +159,59 @@ func TestChangelog_FormatEntry(t *testing.T) {
 
 ### Patch Changes
 
-- Change 2`,
+- Change 2
+
+`,
 		},
 		{
 			name: "multiline message",
 			changesets: []*models.Changeset{
 				{
 					ID:      "multiline",
-					Message: "Add new feature\n\nThis is a longer description\nwith multiple lines",
+					Message: "Add new feature\n\nThis is a longer description\n with multiple lines",
 					Projects: map[string]models.BumpType{
 						"auth": models.BumpMinor,
 					},
 				},
 			},
 			projectName: "auth",
-			want:        "### Minor Changes\n\n- Add new feature\n  This is a longer description\n  with multiple lines",
+			want:        "### Minor Changes\n\n- Add new feature\n    This is a longer description\n    with multiple lines\n\n",
+		},
+		{
+			name: "multiline message with additional bump types",
+			changesets: []*models.Changeset{
+				{
+					ID:      "multiline",
+					Message: "Add new feature\n\nThis is a longer description\n with multiple lines",
+					Projects: map[string]models.BumpType{
+						"auth": models.BumpMinor,
+					},
+				},
+				{
+					ID:      "patch-fix",
+					Message: "Fix minor bug",
+					Projects: map[string]models.BumpType{
+						"auth": models.BumpPatch,
+					},
+				},
+				{
+					ID:      "patch-fix-2",
+					Message: "Fix another minor bug",
+					Projects: map[string]models.BumpType{
+						"auth": models.BumpPatch,
+					},
+				},
+			},
+			projectName: "auth",
+			want:        "### Minor Changes\n\n- Add new feature\n    This is a longer description\n    with multiple lines\n\n### Patch Changes\n\n- Fix minor bug\n- Fix another minor bug\n\n",
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			got, err := cl.FormatEntry(tt.changesets, tt.projectName, "/workspace")
-			if err != nil {
-				t.Fatalf("FormatEntry() error = %v", err)
-			}
-			if got != tt.want {
-				t.Errorf("FormatEntry() mismatch\nGot:\n%s\n\nWant:\n%s", got, tt.want)
-			}
+			assert.NoError(t, err, "FormatEntry() should not return an error")
+			assert.Equal(t, tt.want, got, "FormatEntry() output mismatch")
 		})
 	}
 }

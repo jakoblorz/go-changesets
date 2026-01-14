@@ -17,12 +17,11 @@ import (
 const changelogFileName = "CHANGELOG.md"
 
 const defaultChangelogTemplate = `{{- if .Version}}## {{.Version}} ({{.Date}})
-{{end}}
+{{- end -}}
 {{range $index, $section := .Sections}}### {{$section.Title}}
 {{range $section.Items}}
-- {{.FirstLine}}{{if .PR}} ([#{{.PR.Number}}]({{.PR.URL}}) by @{{.PR.Author}}){{end}}{{if .RestLines}}
-{{range .RestLines}}  {{.}}
-{{end}}{{end}}{{end}}
+- {{.FirstLine}}{{if .PR}} ([#{{.PR.Number}}]({{.PR.URL}}) by @{{.PR.Author}}){{end}}{{- if .RestLines}}{{range .RestLines}}
+    {{.}}{{end}}{{end}}{{end}}
 
 {{end}}`
 
@@ -139,7 +138,6 @@ func (cl *Changelog) Append(projectRoot string, entry *ChangelogEntry) error {
 	}
 
 	buf.WriteString(newEntry)
-	buf.WriteString("\n")
 
 	if strings.Contains(existingContent, "# Changelog") {
 		lines := strings.Split(existingContent, "\n")
@@ -190,7 +188,7 @@ func (cl *Changelog) formatWithTemplate(changesets []*models.Changeset, projectN
 		return "", fmt.Errorf("failed to execute changelog template: %w", err)
 	}
 
-	return strings.TrimSpace(buf.String()), nil
+	return buf.String(), nil
 }
 
 type changelogTemplateData struct {
@@ -273,9 +271,9 @@ func (cl *Changelog) GetEntryForVersion(projectRoot string, version *models.Vers
 
 	endIdx := strings.Index(content[startIdx+len(versionHeader):], "\n## ")
 	if endIdx == -1 {
-		return strings.TrimSpace(content[startIdx:]), nil
+		return content[startIdx:], nil
 	}
 
 	endIdx += startIdx + len(versionHeader)
-	return strings.TrimSpace(content[startIdx:endIdx]), nil
+	return content[startIdx:endIdx], nil
 }
