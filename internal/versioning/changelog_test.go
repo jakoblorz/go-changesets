@@ -224,7 +224,66 @@ func TestChangelog_FormatEntry_AllBumpTypes(t *testing.T) {
 	snaps.MatchSnapshot(t, result)
 }
 
+func TestChangelog_FormatEntry_RawItems(t *testing.T) {
+	t.Cleanup(func() {
+		resetChangelogTemplateCache()
+	})
+
+	fs := filesystem.NewMockFileSystem()
+
+	templateContent := "{{- range .Items}}\n- {{.FirstLine}}{{if .PR}} ([#{{.PR.Number}}]({{.PR.URL}}) by @{{.PR.Author}}){{end}}{{end}}"
+	fs.AddFile("/workspace/.changeset/changelog.tmpl", []byte(templateContent))
+
+	cl := NewChangelog(fs)
+	changesets := []*models.Changeset{
+		{
+			ID:      "major1",
+			Message: "Breaking change",
+			Projects: map[string]models.BumpType{
+				"auth": models.BumpMajor,
+			},
+			PR: &models.PullRequest{
+				Number: 123,
+				URL:    "https://github.com/org/repo/pull/123",
+				Author: "alice",
+			},
+		},
+		{
+			ID:      "minor1",
+			Message: "New feature",
+			Projects: map[string]models.BumpType{
+				"auth": models.BumpMinor,
+			},
+			PR: &models.PullRequest{
+				Number: 123,
+				URL:    "https://github.com/org/repo/pull/123",
+				Author: "alice",
+			},
+		},
+		{
+			ID:      "patch1",
+			Message: "Bug fix",
+			Projects: map[string]models.BumpType{
+				"auth": models.BumpPatch,
+			},
+			PR: &models.PullRequest{
+				Number: 123,
+				URL:    "https://github.com/org/repo/pull/123",
+				Author: "alice",
+			},
+		},
+	}
+
+	result, err := cl.FormatEntry(changesets, "auth", "/workspace")
+	require.NoError(t, err, "FormatEntry() should not return an error")
+	snaps.MatchSnapshot(t, result)
+}
+
 func TestChangelog_CustomTemplateOverride(t *testing.T) {
+	t.Cleanup(func() {
+		resetChangelogTemplateCache()
+	})
+
 	fs := filesystem.NewMockFileSystem()
 	templateContent := "Project: {{.Project}} Version: {{.Version}} Sections: {{len .Sections}}"
 	fs.AddFile("/workspace/.changeset/changelog.tmpl", []byte(templateContent))

@@ -29,6 +29,12 @@ var (
 	templateCacheLock sync.Mutex
 )
 
+func resetChangelogTemplateCache() {
+	templateCacheLock.Lock()
+	defer templateCacheLock.Unlock()
+	templateCache = make(map[string]*template.Template)
+}
+
 func getChangelogTemplate(fs filesystem.FileSystem, projectRoot string) (*template.Template, error) {
 	path := findCustomTemplate(fs, projectRoot)
 	cacheKey := path
@@ -195,6 +201,7 @@ type changelogTemplateData struct {
 	Version  string
 	Date     string
 	Sections []changelogTemplateSection
+	Items    []changelogTemplateItem
 }
 
 type changelogTemplateSection struct {
@@ -219,10 +226,12 @@ func (cl *Changelog) buildTemplateData(changesets []*models.Changeset, projectNa
 
 	sections := buildSections(changesets, projectName)
 	for _, section := range sections {
+		items := buildTemplateItems(section.Changesets)
 		data.Sections = append(data.Sections, changelogTemplateSection{
 			Title: section.Title,
-			Items: buildTemplateItems(section.Changesets),
+			Items: items,
 		})
+		data.Items = append(data.Items, items...)
 	}
 
 	return data

@@ -247,3 +247,10 @@ All notable changes to this project will be documented in this file.
 
 
 ---
+
+[TestChangelog_FormatEntry_RawItems - 1]
+
+- Breaking change ([#123](https://github.com/org/repo/pull/123) by @alice)
+- New feature ([#123](https://github.com/org/repo/pull/123) by @alice)
+- Bug fix ([#123](https://github.com/org/repo/pull/123) by @alice)
+---
