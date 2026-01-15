@@ -92,6 +92,60 @@
 Project: auth Version: 1.2.3 Sections: 0
 ---
 
+[TestChangelog_Format_Append_withPRDetails/FormatEntry - 1]
+### Major Changes
+- Breaking API change
+
+### Minor Changes
+- Add OAuth2 support ([#123](https://github.com/org/repo/pull/123) by @alice)
+  Includes Google + GitHub providers
+
+### Patch Changes
+- Fix memory leak
+
+
+---
+
+[TestChangelog_Format_Append_withPRDetails/Append - 1]
+# Changelog
+
+All notable changes to this project will be documented in this file.
+
+
+## 2.0.0 (2024-12-06)
+### Major Changes
+- Breaking API change
+
+### Minor Changes
+- Add OAuth2 support ([#123](https://github.com/org/repo/pull/123) by @alice)
+  Includes Google + GitHub providers
+
+### Patch Changes
+- Fix memory leak
+
+
+---
+
+[TestChangelog_Format_Append_withPRDetails/AppendWithProject - 1]
+# Changelog
+
+All notable changes to this project will be documented in this file.
+
+
+## auth@2.0.0 (2024-12-06)
+### Major Changes
+- Breaking API change
+
+### Minor Changes
+- Add OAuth2 support ([#123](https://github.com/org/repo/pull/123) by @alice)
+  Includes Google + GitHub providers
+
+### Patch Changes
+- Fix memory leak
+
+
+---
+
 [TestChangelog_Append/should_continously_insert_entries_below_the_header - 1]
 # Changelog
 

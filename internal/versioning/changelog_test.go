@@ -241,6 +241,85 @@ func TestChangelog_CustomTemplateOverride(t *testing.T) {
 	snaps.MatchSnapshot(t, output)
 }
 
+func TestChangelog_Format_Append_withPRDetails(t *testing.T) {
+	changesets := []*models.Changeset{
+		{
+			ID:      "minor-with-pr",
+			Message: "Add OAuth2 support\n\nIncludes Google + GitHub providers",
+			Projects: map[string]models.BumpType{
+				"auth": models.BumpMinor,
+			},
+			PR: &models.PullRequest{
+				Number: 123,
+				URL:    "https://github.com/org/repo/pull/123",
+				Author: "alice",
+			},
+		},
+		{
+			ID:      "patch",
+			Message: "Fix memory leak",
+			Projects: map[string]models.BumpType{
+				"auth": models.BumpPatch,
+			},
+		},
+		{
+			ID:      "major",
+			Message: "Breaking API change",
+			Projects: map[string]models.BumpType{
+				"auth": models.BumpMajor,
+			},
+		},
+	}
+
+	t.Run("FormatEntry", func(t *testing.T) {
+		fs := filesystem.NewMockFileSystem()
+		changelog := NewChangelog(fs)
+
+		preview, err := changelog.FormatEntry(changesets, "auth", "/workspace")
+		if err != nil {
+			t.Fatalf("FormatEntry failed: %v", err)
+		}
+		snaps.MatchSnapshot(t, preview)
+	})
+
+	t.Run("Append", func(t *testing.T) {
+		fs := filesystem.NewMockFileSystem()
+		changelog := NewChangelog(fs)
+
+		rootEntry := &ChangelogEntry{
+			Version:    &models.Version{Major: 2, Minor: 0, Patch: 0},
+			Date:       time.Date(2024, 12, 6, 0, 0, 0, 0, time.UTC),
+			Changesets: changesets,
+		}
+		err := changelog.Append(".", "", rootEntry)
+		assert.NoError(t, err, "Append should not return an error")
+
+		content, err := fs.ReadFile("./CHANGELOG.md")
+		assert.NoError(t, err, "ReadFile should not return an error")
+
+		snaps.MatchSnapshot(t, string(content))
+	})
+
+	t.Run("AppendWithProject", func(t *testing.T) {
+		fs := filesystem.NewMockFileSystem()
+		changelog := NewChangelog(fs)
+
+		rootEntry := &ChangelogEntry{
+			Version:    &models.Version{Major: 2, Minor: 0, Patch: 0},
+			Date:       time.Date(2024, 12, 6, 0, 0, 0, 0, time.UTC),
+			Changesets: changesets,
+		}
+		err := changelog.Append(".", "auth", rootEntry)
+		assert.NoError(t, err, "Append should not return an error")
+
+		content, err := fs.ReadFile("./CHANGELOG.md")
+		assert.NoError(t, err, "ReadFile should not return an error")
+
+		snaps.MatchSnapshot(t, string(content))
+	})
+
+}
+
 func TestChangelog_Append(t *testing.T) {
 	runTestCase := func(t *testing.T, projectName string) {
 		fs := filesystem.NewMockFileSystem()
