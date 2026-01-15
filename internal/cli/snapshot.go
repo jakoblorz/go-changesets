@@ -128,8 +128,14 @@ func (c *SnapshotCommand) Run(cmd *cobra.Command, args []string) error {
 
 	fmt.Printf("Creating snapshot tag: %s\n", tag)
 
+	changelog := versioning.NewChangelog(c.fs)
+	summary, err := changelog.FormatEntry(projectChangesets, resolved.Project.Name, resolved.Project.RootPath)
+	if err != nil {
+		return fmt.Errorf("failed to format changelog entry: %w", err)
+	}
+
 	if c.git != nil {
-		summary := versioning.GenerateChangesetSummary(projectChangesets, resolved.Name)
+
 		if err := c.git.CreateTag(tag, summary); err != nil {
 			exists, _ := c.git.TagExists(tag)
 			if !exists {
@@ -154,13 +160,11 @@ func (c *SnapshotCommand) Run(cmd *cobra.Command, args []string) error {
 		return nil
 	}
 
-	releaseNotes := versioning.GenerateChangesetSummary(projectChangesets, resolved.Name)
-
 	fmt.Println("Creating GitHub pre-release...")
 	release, err := c.ghClient.CreateRelease(ctx, owner, repo, &github.CreateReleaseRequest{
 		TagName:    tag,
 		Name:       tag,
-		Body:       releaseNotes,
+		Body:       summary,
 		Prerelease: true,
 	})
 	if err != nil {

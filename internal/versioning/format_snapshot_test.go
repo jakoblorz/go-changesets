@@ -2,10 +2,12 @@ package versioning
 
 import (
 	"testing"
+	"time"
 
 	"github.com/gkampitakis/go-snaps/snaps"
 	"github.com/jakoblorz/go-changesets/internal/filesystem"
 	"github.com/jakoblorz/go-changesets/internal/models"
+	"github.com/stretchr/testify/assert"
 )
 
 func TestFormattingSnapshots(t *testing.T) {
@@ -49,8 +51,21 @@ func TestFormattingSnapshots(t *testing.T) {
 		snaps.MatchSnapshot(t, preview)
 	})
 
-	t.Run("snapshot summary", func(t *testing.T) {
-		summary := GenerateChangesetSummary(changesets, "auth")
-		snaps.MatchSnapshot(t, summary)
+	t.Run("changelog with project name", func(t *testing.T) {
+		fs := filesystem.NewMockFileSystem()
+		changelog := NewChangelog(fs)
+
+		rootEntry := &ChangelogEntry{
+			Version:    &models.Version{Major: 2, Minor: 0, Patch: 0},
+			Date:       time.Date(2024, 12, 6, 0, 0, 0, 0, time.UTC),
+			Changesets: changesets,
+		}
+		err := changelog.Append(".", "auth", rootEntry)
+		assert.NoError(t, err, "Append should not return an error")
+
+		content, err := fs.ReadFile("./CHANGELOG.md")
+		assert.NoError(t, err, "ReadFile should not return an error")
+
+		snaps.MatchSnapshot(t, string(content))
 	})
 }

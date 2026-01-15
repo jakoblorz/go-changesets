@@ -17,7 +17,7 @@ import (
 const changelogFileName = "CHANGELOG.md"
 
 const defaultChangelogTemplate = `{{- if .Version}}## {{if .Project}}{{.Project}}@{{end}}{{.Version}} ({{.Date}})
-{{- end -}}
+{{end -}}
 {{range $index, $section := .Sections}}### {{$section.Title}}
 {{range $section.Items}}
 - {{.FirstLine}}{{if .PR}} ([#{{.PR.Number}}]({{.PR.URL}}) by @{{.PR.Author}}){{end}}{{- if .RestLines}}{{range .RestLines}}
@@ -137,8 +137,8 @@ func (cl *Changelog) Append(projectRoot string, projectName string, entry *Chang
 		buf.WriteString("All notable changes to this project will be documented in this file.\n\n")
 	}
 
-	buf.WriteString(newEntry)
 	buf.WriteString("\n")
+	buf.WriteString(newEntry)
 
 	if strings.Contains(existingContent, "# Changelog") {
 		lines := strings.Split(existingContent, "\n")
