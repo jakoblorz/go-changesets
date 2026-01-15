@@ -1,16 +1,13 @@
 
 [TestFormattingSnapshots/changelog_preview - 1]
 ### Major Changes
-
 - Breaking API change
 
 ### Minor Changes
-
 - Add OAuth2 support ([#123](https://github.com/org/repo/pull/123) by @alice)
   Includes Google + GitHub providers
 
 ### Patch Changes
-
 - Fix memory leak
 
 
@@ -24,16 +21,13 @@ All notable changes to this project will be documented in this file.
 
 ## auth@2.0.0 (2024-12-06)
 ### Major Changes
-
 - Breaking API change
 
 ### Minor Changes
-
 - Add OAuth2 support ([#123](https://github.com/org/repo/pull/123) by @alice)
   Includes Google + GitHub providers
 
 ### Patch Changes
-
 - Fix memory leak
 
 
