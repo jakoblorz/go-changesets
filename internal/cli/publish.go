@@ -73,9 +73,9 @@ func (c *PublishCommand) Run(cmd *cobra.Command, args []string) error {
 	}
 
 	if c.ghClient == nil {
-		token := os.Getenv("GITHUB_TOKEN")
+		token := os.Getenv("GH_TOKEN")
 		if token == "" {
-			token = os.Getenv("GH_TOKEN")
+			token = os.Getenv("GITHUB_TOKEN")
 		}
 		if token == "" {
 			return fmt.Errorf("GITHUB_TOKEN or GH_TOKEN environment variable required for publishing")
