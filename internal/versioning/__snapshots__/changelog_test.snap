@@ -1,0 +1,256 @@
+
+[TestChangelog_FormatEntry/no_changesets - 1]
+
+---
+
+[TestChangelog_FormatEntry/single_patch_changeset - 1]
+### Patch Changes
+- Fix memory leak
+
+
+---
+
+[TestChangelog_FormatEntry/single_minor_changeset - 1]
+### Minor Changes
+- Add OAuth2 support
+
+
+---
+
+[TestChangelog_FormatEntry/single_major_changeset - 1]
+### Major Changes
+- Breaking API change
+
+
+---
+
+[TestChangelog_FormatEntry/multiple_changesets_grouped_by_type - 1]
+### Minor Changes
+- Add feature 1
+- Add feature 2
+
+### Patch Changes
+- Fix bug 1
+- Fix bug 2
+
+
+---
+
+[TestChangelog_FormatEntry/filters_by_project_name - 1]
+### Minor Changes
+- Auth change
+
+
+---
+
+[TestChangelog_FormatEntry/empty_project_name_includes_all - 1]
+### Minor Changes
+- Change 1
+
+### Patch Changes
+- Change 2
+
+
+---
+
+[TestChangelog_FormatEntry/multiline_message - 1]
+### Minor Changes
+- Add new feature
+  This is a longer description
+  with multiple lines
+
+
+---
+
+[TestChangelog_FormatEntry/multiline_message_with_additional_bump_types - 1]
+### Minor Changes
+- Add new feature
+  This is a longer description
+  with multiple lines
+
+### Patch Changes
+- Fix minor bug
+- Fix another minor bug
+
+
+---
+
+[TestChangelog_FormatEntry_AllBumpTypes - 1]
+### Major Changes
+- Breaking change
+
+### Minor Changes
+- New feature
+
+### Patch Changes
+- Bug fix
+
+
+---
+
+[TestChangelog_CustomTemplateOverride - 1]
+Project: auth Version: 1.2.3 Sections: 0
+---
+
+[TestChangelog_Format_Append_withPRDetails/FormatEntry - 1]
+### Major Changes
+- Breaking API change
+
+### Minor Changes
+- Add OAuth2 support ([#123](https://github.com/org/repo/pull/123) by @alice)
+  Includes Google + GitHub providers
+
+### Patch Changes
+- Fix memory leak
+
+
+---
+
+[TestChangelog_Format_Append_withPRDetails/Append - 1]
+# Changelog
+
+All notable changes to this project will be documented in this file.
+
+
+## 2.0.0 (2024-12-06)
+### Major Changes
+- Breaking API change
+
+### Minor Changes
+- Add OAuth2 support ([#123](https://github.com/org/repo/pull/123) by @alice)
+  Includes Google + GitHub providers
+
+### Patch Changes
+- Fix memory leak
+
+
+---
+
+[TestChangelog_Format_Append_withPRDetails/AppendWithProject - 1]
+# Changelog
+
+All notable changes to this project will be documented in this file.
+
+
+## auth@2.0.0 (2024-12-06)
+### Major Changes
+- Breaking API change
+
+### Minor Changes
+- Add OAuth2 support ([#123](https://github.com/org/repo/pull/123) by @alice)
+  Includes Google + GitHub providers
+
+### Patch Changes
+- Fix memory leak
+
+
+---
+
+[TestChangelog_Append/should_continously_insert_entries_below_the_header - 1]
+# Changelog
+
+All notable changes to this project will be documented in this file.
+
+
+## 1.0.0 (2024-01-01)
+### Minor Changes
+- First change
+
+
+---
+
+[TestChangelog_Append/should_continously_insert_entries_below_the_header - 2]
+# Changelog
+
+All notable changes to this project will be documented in this file.
+
+
+## 1.1.0 (2024-02-01)
+### Minor Changes
+- Second change
+
+## 1.0.0 (2024-01-01)
+### Minor Changes
+- First change
+
+
+---
+
+[TestChangelog_Append/should_continously_insert_entries_below_the_header - 3]
+# Changelog
+
+All notable changes to this project will be documented in this file.
+
+
+## 1.1.1 (2024-02-01)
+### Minor Changes
+- Third change
+
+## 1.1.0 (2024-02-01)
+### Minor Changes
+- Second change
+
+## 1.0.0 (2024-01-01)
+### Minor Changes
+- First change
+
+
+---
+
+[TestChangelog_Append/should_include_project_name_in_version_headers - 1]
+# Changelog
+
+All notable changes to this project will be documented in this file.
+
+
+## test@1.0.0 (2024-01-01)
+### Minor Changes
+- First change
+
+
+---
+
+[TestChangelog_Append/should_include_project_name_in_version_headers - 2]
+# Changelog
+
+All notable changes to this project will be documented in this file.
+
+
+## test@1.1.0 (2024-02-01)
+### Minor Changes
+- Second change
+
+## test@1.0.0 (2024-01-01)
+### Minor Changes
+- First change
+
+
+---
+
+[TestChangelog_Append/should_include_project_name_in_version_headers - 3]
+# Changelog
+
+All notable changes to this project will be documented in this file.
+
+
+## test@1.1.1 (2024-02-01)
+### Minor Changes
+- Third change
+
+## test@1.1.0 (2024-02-01)
+### Minor Changes
+- Second change
+
+## test@1.0.0 (2024-01-01)
+### Minor Changes
+- First change
+
+
+---
+
+[TestChangelog_FormatEntry_RawItems - 1]
+
+- Breaking change ([#123](https://github.com/org/repo/pull/123) by @alice)
+- New feature ([#123](https://github.com/org/repo/pull/123) by @alice)
+- Bug fix ([#123](https://github.com/org/repo/pull/123) by @alice)
+---

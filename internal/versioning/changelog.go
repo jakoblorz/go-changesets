@@ -18,10 +18,9 @@ const changelogFileName = "CHANGELOG.md"
 
 const defaultChangelogTemplate = `{{- if .Version}}## {{if .Project}}{{.Project}}@{{end}}{{.Version}} ({{.Date}})
 {{end -}}
-{{range $index, $section := .Sections}}### {{$section.Title}}
-{{range $section.Items}}
+{{range $index, $section := .Sections}}### {{$section.Title}}{{range $section.Items}}
 - {{.FirstLine}}{{if .PR}} ([#{{.PR.Number}}]({{.PR.URL}}) by @{{.PR.Author}}){{end}}{{- if .RestLines}}{{range .RestLines}}
-    {{.}}{{end}}{{end}}{{end}}
+  {{.}}{{end}}{{end}}{{end}}
 
 {{end}}`
 
@@ -134,10 +133,9 @@ func (cl *Changelog) Append(projectRoot string, projectName string, entry *Chang
 		}
 	} else {
 		buf.WriteString("# Changelog\n\n")
-		buf.WriteString("All notable changes to this project will be documented in this file.\n\n")
+		buf.WriteString("All notable changes to this project will be documented in this file.\n\n\n")
 	}
 
-	buf.WriteString("\n")
 	buf.WriteString(newEntry)
 
 	if strings.Contains(existingContent, "# Changelog") {
@@ -197,6 +195,7 @@ type changelogTemplateData struct {
 	Version  string
 	Date     string
 	Sections []changelogTemplateSection
+	Items    []changelogTemplateItem
 }
 
 type changelogTemplateSection struct {
@@ -221,10 +220,12 @@ func (cl *Changelog) buildTemplateData(changesets []*models.Changeset, projectNa
 
 	sections := buildSections(changesets, projectName)
 	for _, section := range sections {
+		items := buildTemplateItems(section.Changesets)
 		data.Sections = append(data.Sections, changelogTemplateSection{
 			Title: section.Title,
-			Items: buildTemplateItems(section.Changesets),
+			Items: items,
 		})
+		data.Items = append(data.Items, items...)
 	}
 
 	return data
