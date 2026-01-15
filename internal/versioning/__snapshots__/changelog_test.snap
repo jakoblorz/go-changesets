@@ -92,7 +92,7 @@
 Project: auth Version: 1.2.3 Sections: 0
 ---
 
-[TestChangelog_Append - 1]
+[TestChangelog_Append/should_continously_insert_entries_below_the_header - 1]
 # Changelog
 
 All notable changes to this project will be documented in this file.
@@ -105,7 +105,7 @@ All notable changes to this project will be documented in this file.
 
 ---
 
-[TestChangelog_Append - 2]
+[TestChangelog_Append/should_continously_insert_entries_below_the_header - 2]
 # Changelog
 
 All notable changes to this project will be documented in this file.
@@ -122,7 +122,7 @@ All notable changes to this project will be documented in this file.
 
 ---
 
-[TestChangelog_Append - 3]
+[TestChangelog_Append/should_continously_insert_entries_below_the_header - 3]
 # Changelog
 
 All notable changes to this project will be documented in this file.
@@ -137,6 +137,57 @@ All notable changes to this project will be documented in this file.
 - Second change
 
 ## 1.0.0 (2024-01-01)
+### Minor Changes
+- First change
+
+
+---
+
+[TestChangelog_Append/should_include_project_name_in_version_headers - 1]
+# Changelog
+
+All notable changes to this project will be documented in this file.
+
+
+## test@1.0.0 (2024-01-01)
+### Minor Changes
+- First change
+
+
+---
+
+[TestChangelog_Append/should_include_project_name_in_version_headers - 2]
+# Changelog
+
+All notable changes to this project will be documented in this file.
+
+
+## test@1.1.0 (2024-02-01)
+### Minor Changes
+- Second change
+
+## test@1.0.0 (2024-01-01)
+### Minor Changes
+- First change
+
+
+---
+
+[TestChangelog_Append/should_include_project_name_in_version_headers - 3]
+# Changelog
+
+All notable changes to this project will be documented in this file.
+
+
+## test@1.1.1 (2024-02-01)
+### Minor Changes
+- Third change
+
+## test@1.1.0 (2024-02-01)
+### Minor Changes
+- Second change
+
+## test@1.0.0 (2024-01-01)
 ### Minor Changes
 - First change
 

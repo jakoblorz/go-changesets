@@ -242,66 +242,77 @@ func TestChangelog_CustomTemplateOverride(t *testing.T) {
 }
 
 func TestChangelog_Append(t *testing.T) {
-	fs := filesystem.NewMockFileSystem()
-	cl := NewChangelog(fs)
+	runTestCase := func(t *testing.T, projectName string) {
+		fs := filesystem.NewMockFileSystem()
+		cl := NewChangelog(fs)
 
-	projectRoot := "/test/project"
-	changelogPath := filepath.Join(projectRoot, "CHANGELOG.md")
+		projectRoot := "/test/project"
+		changelogPath := filepath.Join(projectRoot, "CHANGELOG.md")
 
-	fs.AddDir(projectRoot)
+		fs.AddDir(projectRoot)
 
-	renderChangelogEntry := func(projectName string, entry *ChangelogEntry) string {
-		err := cl.Append(projectRoot, projectName, entry)
-		require.NoError(t, err, "append should not error")
+		renderChangelogEntry := func(entry *ChangelogEntry) string {
+			err := cl.Append(projectRoot, projectName, entry)
+			require.NoError(t, err, "append should not error")
 
-		data, err := fs.ReadFile(changelogPath)
-		require.NoError(t, err, "read should not error")
+			data, err := fs.ReadFile(changelogPath)
+			require.NoError(t, err, "read should not error")
 
-		return string(data)
+			return string(data)
+		}
+
+		// First append - should add header
+		snaps.MatchSnapshot(t, renderChangelogEntry(&ChangelogEntry{
+			Version: &models.Version{Major: 1, Minor: 0, Patch: 0},
+			Date:    time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC),
+			Changesets: []*models.Changeset{
+				{
+					ID:      "first",
+					Message: "First change",
+					Projects: map[string]models.BumpType{
+						"test": models.BumpMinor,
+					},
+				},
+			},
+		}))
+
+		// Second append - should preserve header
+		snaps.MatchSnapshot(t, renderChangelogEntry(&ChangelogEntry{
+			Version: &models.Version{Major: 1, Minor: 1, Patch: 0},
+			Date:    time.Date(2024, 2, 1, 0, 0, 0, 0, time.UTC),
+			Changesets: []*models.Changeset{
+				{
+					ID:      "second",
+					Message: "Second change",
+					Projects: map[string]models.BumpType{
+						"test": models.BumpMinor,
+					},
+				},
+			},
+		}))
+
+		// Third append - should contain project name in version header
+		snaps.MatchSnapshot(t, renderChangelogEntry(&ChangelogEntry{
+			Version: &models.Version{Major: 1, Minor: 1, Patch: 1},
+			Date:    time.Date(2024, 2, 1, 0, 0, 0, 0, time.UTC),
+			Changesets: []*models.Changeset{
+				{
+					ID:      "third",
+					Message: "Third change",
+					Projects: map[string]models.BumpType{
+						"test": models.BumpMinor,
+					},
+				},
+			},
+		}))
 	}
 
-	// First append - should add header
-	snaps.MatchSnapshot(t, renderChangelogEntry("", &ChangelogEntry{
-		Version: &models.Version{Major: 1, Minor: 0, Patch: 0},
-		Date:    time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC),
-		Changesets: []*models.Changeset{
-			{
-				ID:      "first",
-				Message: "First change",
-				Projects: map[string]models.BumpType{
-					"test": models.BumpMinor,
-				},
-			},
-		},
-	}))
+	t.Run("should continously insert entries below the header", func(t *testing.T) {
+		runTestCase(t, "")
+	})
 
-	// Second append - should preserve header
-	snaps.MatchSnapshot(t, renderChangelogEntry("", &ChangelogEntry{
-		Version: &models.Version{Major: 1, Minor: 1, Patch: 0},
-		Date:    time.Date(2024, 2, 1, 0, 0, 0, 0, time.UTC),
-		Changesets: []*models.Changeset{
-			{
-				ID:      "second",
-				Message: "Second change",
-				Projects: map[string]models.BumpType{
-					"test": models.BumpMinor,
-				},
-			},
-		},
-	}))
+	t.Run("should include project name in version headers", func(t *testing.T) {
+		runTestCase(t, "test")
+	})
 
-	// Third append - should contain project name in version header
-	snaps.MatchSnapshot(t, renderChangelogEntry("test", &ChangelogEntry{
-		Version: &models.Version{Major: 1, Minor: 1, Patch: 1},
-		Date:    time.Date(2024, 2, 1, 0, 0, 0, 0, time.UTC),
-		Changesets: []*models.Changeset{
-			{
-				ID:      "third",
-				Message: "Third change",
-				Projects: map[string]models.BumpType{
-					"test": models.BumpMinor,
-				},
-			},
-		},
-	}))
 }
