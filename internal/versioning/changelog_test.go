@@ -1,13 +1,15 @@
 package versioning
 
 import (
-	"strings"
+	"path/filepath"
 	"testing"
 	"time"
 
+	"github.com/gkampitakis/go-snaps/snaps"
 	"github.com/jakoblorz/go-changesets/internal/filesystem"
 	"github.com/jakoblorz/go-changesets/internal/models"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestChangelog_FormatEntry(t *testing.T) {
@@ -24,7 +26,6 @@ func TestChangelog_FormatEntry(t *testing.T) {
 			name:        "no changesets",
 			changesets:  []*models.Changeset{},
 			projectName: "auth",
-			want:        "",
 		},
 		{
 			name: "single patch changeset",
@@ -38,7 +39,6 @@ func TestChangelog_FormatEntry(t *testing.T) {
 				},
 			},
 			projectName: "auth",
-			want:        "### Patch Changes\n\n- Fix memory leak\n\n",
 		},
 		{
 			name: "single minor changeset",
@@ -52,7 +52,6 @@ func TestChangelog_FormatEntry(t *testing.T) {
 				},
 			},
 			projectName: "auth",
-			want:        "### Minor Changes\n\n- Add OAuth2 support\n\n",
 		},
 		{
 			name: "single major changeset",
@@ -66,7 +65,6 @@ func TestChangelog_FormatEntry(t *testing.T) {
 				},
 			},
 			projectName: "auth",
-			want:        "### Major Changes\n\n- Breaking API change\n\n",
 		},
 		{
 			name: "multiple changesets grouped by type",
@@ -101,17 +99,6 @@ func TestChangelog_FormatEntry(t *testing.T) {
 				},
 			},
 			projectName: "auth",
-			want: `### Minor Changes
-
-- Add feature 1
-- Add feature 2
-
-### Patch Changes
-
-- Fix bug 1
-- Fix bug 2
-
-`,
 		},
 		{
 			name: "filters by project name",
@@ -132,7 +119,6 @@ func TestChangelog_FormatEntry(t *testing.T) {
 				},
 			},
 			projectName: "auth",
-			want:        "### Minor Changes\n\n- Auth change\n\n",
 		},
 		{
 			name: "empty project name includes all",
@@ -153,15 +139,6 @@ func TestChangelog_FormatEntry(t *testing.T) {
 				},
 			},
 			projectName: "",
-			want: `### Minor Changes
-
-- Change 1
-
-### Patch Changes
-
-- Change 2
-
-`,
 		},
 		{
 			name: "multiline message",
@@ -175,7 +152,6 @@ func TestChangelog_FormatEntry(t *testing.T) {
 				},
 			},
 			projectName: "auth",
-			want:        "### Minor Changes\n\n- Add new feature\n    This is a longer description\n    with multiple lines\n\n",
 		},
 		{
 			name: "multiline message with additional bump types",
@@ -203,7 +179,6 @@ func TestChangelog_FormatEntry(t *testing.T) {
 				},
 			},
 			projectName: "auth",
-			want:        "### Minor Changes\n\n- Add new feature\n    This is a longer description\n    with multiple lines\n\n### Patch Changes\n\n- Fix minor bug\n- Fix another minor bug\n\n",
 		},
 	}
 
@@ -211,7 +186,7 @@ func TestChangelog_FormatEntry(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			got, err := cl.FormatEntry(tt.changesets, tt.projectName, "/workspace")
 			assert.NoError(t, err, "FormatEntry() should not return an error")
-			assert.Equal(t, tt.want, got, "FormatEntry() output mismatch")
+			snaps.MatchSnapshot(t, got)
 		})
 	}
 }
@@ -245,33 +220,8 @@ func TestChangelog_FormatEntry_AllBumpTypes(t *testing.T) {
 	}
 
 	result, err := cl.FormatEntry(changesets, "auth", "/workspace")
-	if err != nil {
-		t.Fatalf("FormatEntry() error = %v", err)
-	}
-
-	// Verify order: Major, Minor, Patch
-	majorIdx := strings.Index(result, "### Major Changes")
-	minorIdx := strings.Index(result, "### Minor Changes")
-	patchIdx := strings.Index(result, "### Patch Changes")
-
-	if majorIdx == -1 || minorIdx == -1 || patchIdx == -1 {
-		t.Fatalf("Missing sections in output:\n%s", result)
-	}
-
-	if !(majorIdx < minorIdx && minorIdx < patchIdx) {
-		t.Errorf("Sections not in correct order (Major, Minor, Patch):\n%s", result)
-	}
-
-	// Verify content
-	if !strings.Contains(result, "- Breaking change") {
-		t.Errorf("Missing major change in output")
-	}
-	if !strings.Contains(result, "- New feature") {
-		t.Errorf("Missing minor change in output")
-	}
-	if !strings.Contains(result, "- Bug fix") {
-		t.Errorf("Missing patch change in output")
-	}
+	require.NoError(t, err, "FormatEntry() should not return an error")
+	snaps.MatchSnapshot(t, result)
 }
 
 func TestChangelog_CustomTemplateOverride(t *testing.T) {
@@ -281,24 +231,77 @@ func TestChangelog_CustomTemplateOverride(t *testing.T) {
 
 	cl := NewChangelog(fs)
 	entry := &ChangelogEntry{
-		Version:    mustParseVersion("1.2.3"),
+		Version:    &models.Version{Major: 1, Minor: 2, Patch: 3},
 		Date:       time.Date(2024, 12, 6, 0, 0, 0, 0, time.UTC),
 		Changesets: []*models.Changeset{},
 	}
 
 	output, err := cl.formatEntry(entry, "auth", "/workspace")
-	if err != nil {
-		t.Fatalf("formatEntry() error = %v", err)
-	}
-	if output != "Project: auth Version: 1.2.3 Sections: 0" {
-		t.Fatalf("unexpected template output: %s", output)
-	}
+	require.NoError(t, err, "formatEntry() should not return an error")
+	snaps.MatchSnapshot(t, output)
 }
 
-func mustParseVersion(s string) *models.Version {
-	v, err := models.ParseVersion(s)
-	if err != nil {
-		panic(err)
+func TestChangelog_Append(t *testing.T) {
+	fs := filesystem.NewMockFileSystem()
+	cl := NewChangelog(fs)
+
+	projectRoot := "/test/project"
+	changelogPath := filepath.Join(projectRoot, "CHANGELOG.md")
+
+	fs.AddDir(projectRoot)
+
+	renderChangelogEntry := func(projectName string, entry *ChangelogEntry) string {
+		err := cl.Append(projectRoot, projectName, entry)
+		require.NoError(t, err, "append should not error")
+
+		data, err := fs.ReadFile(changelogPath)
+		require.NoError(t, err, "read should not error")
+
+		return string(data)
 	}
-	return v
+
+	// First append - should add header
+	snaps.MatchSnapshot(t, renderChangelogEntry("", &ChangelogEntry{
+		Version: &models.Version{Major: 1, Minor: 0, Patch: 0},
+		Date:    time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC),
+		Changesets: []*models.Changeset{
+			{
+				ID:      "first",
+				Message: "First change",
+				Projects: map[string]models.BumpType{
+					"test": models.BumpMinor,
+				},
+			},
+		},
+	}))
+
+	// Second append - should preserve header
+	snaps.MatchSnapshot(t, renderChangelogEntry("", &ChangelogEntry{
+		Version: &models.Version{Major: 1, Minor: 1, Patch: 0},
+		Date:    time.Date(2024, 2, 1, 0, 0, 0, 0, time.UTC),
+		Changesets: []*models.Changeset{
+			{
+				ID:      "second",
+				Message: "Second change",
+				Projects: map[string]models.BumpType{
+					"test": models.BumpMinor,
+				},
+			},
+		},
+	}))
+
+	// Third append - should contain project name in version header
+	snaps.MatchSnapshot(t, renderChangelogEntry("test", &ChangelogEntry{
+		Version: &models.Version{Major: 1, Minor: 1, Patch: 1},
+		Date:    time.Date(2024, 2, 1, 0, 0, 0, 0, time.UTC),
+		Changesets: []*models.Changeset{
+			{
+				ID:      "third",
+				Message: "Third change",
+				Projects: map[string]models.BumpType{
+					"test": models.BumpMinor,
+				},
+			},
+		},
+	}))
 }

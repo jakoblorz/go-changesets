@@ -134,10 +134,9 @@ func (cl *Changelog) Append(projectRoot string, projectName string, entry *Chang
 		}
 	} else {
 		buf.WriteString("# Changelog\n\n")
-		buf.WriteString("All notable changes to this project will be documented in this file.\n\n")
+		buf.WriteString("All notable changes to this project will be documented in this file.\n\n\n")
 	}
 
-	buf.WriteString("\n")
 	buf.WriteString(newEntry)
 
 	if strings.Contains(existingContent, "# Changelog") {
