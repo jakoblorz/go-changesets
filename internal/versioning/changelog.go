@@ -21,7 +21,7 @@ const defaultChangelogTemplate = `{{- if .Version}}## {{if .Project}}{{.Project}
 {{range $index, $section := .Sections}}### {{$section.Title}}
 {{range $section.Items}}
 - {{.FirstLine}}{{if .PR}} ([#{{.PR.Number}}]({{.PR.URL}}) by @{{.PR.Author}}){{end}}{{- if .RestLines}}{{range .RestLines}}
-    {{.}}{{end}}{{end}}{{end}}
+  {{.}}{{end}}{{end}}{{end}}
 
 {{end}}`
 

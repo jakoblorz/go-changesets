@@ -7,7 +7,7 @@
 ### Minor Changes
 
 - Add OAuth2 support ([#123](https://github.com/org/repo/pull/123) by @alice)
-    Includes Google + GitHub providers
+  Includes Google + GitHub providers
 
 ### Patch Changes
 
@@ -30,7 +30,7 @@ All notable changes to this project will be documented in this file.
 ### Minor Changes
 
 - Add OAuth2 support ([#123](https://github.com/org/repo/pull/123) by @alice)
-    Includes Google + GitHub providers
+  Includes Google + GitHub providers
 
 ### Patch Changes
 
