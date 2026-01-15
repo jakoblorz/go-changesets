@@ -107,7 +107,7 @@ func (c *VersionCommand) Run(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to write version: %w", err)
 	}
 
-	fmt.Printf("✓ Updated %s/version.txt\n", resolved.Name)
+	fmt.Printf("✓ Updated %s/version.txt\n", resolved.Project.RootPath)
 
 	changelog := versioning.NewChangelog(c.fs)
 	entry := &versioning.ChangelogEntry{
@@ -116,11 +116,24 @@ func (c *VersionCommand) Run(cmd *cobra.Command, args []string) error {
 		Changesets: projectChangesets,
 	}
 
-	if err := changelog.Append(resolved.Project.RootPath, entry); err != nil {
+	if err := changelog.Append(resolved.Project.RootPath, "", entry); err != nil {
 		return fmt.Errorf("failed to update changelog: %w", err)
 	}
 
-	fmt.Printf("✓ Updated %s/CHANGELOG.md\n\n", resolved.Name)
+	fmt.Printf("✓ Updated %s/CHANGELOG.md\n\n", resolved.Project.RootPath)
+
+	if resolved.Workspace.RootPath != resolved.Project.RootPath {
+		rootEntry := &versioning.ChangelogEntry{
+			Version:    newVersion,
+			Date:       entry.Date,
+			Changesets: projectChangesets,
+		}
+		if err := changelog.Append(resolved.Workspace.RootPath, resolved.Project.Name, rootEntry); err != nil {
+			return fmt.Errorf("failed to update root changelog: %w", err)
+		}
+
+		fmt.Printf("✓ Updated ./CHANGELOG.md\n\n")
+	}
 
 	fmt.Println("Removing consumed changesets...")
 	for _, cs := range projectChangesets {

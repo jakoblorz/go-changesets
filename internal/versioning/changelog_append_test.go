@@ -32,7 +32,7 @@ func TestChangelog_Append_PreservesHeader(t *testing.T) {
 		},
 	}
 
-	if err := cl.Append(projectRoot, entry1); err != nil {
+	if err := cl.Append(projectRoot, "", entry1); err != nil {
 		t.Fatalf("First append failed: %v", err)
 	}
 
@@ -73,7 +73,7 @@ func TestChangelog_Append_PreservesHeader(t *testing.T) {
 		},
 	}
 
-	if err := cl.Append(projectRoot, entry2); err != nil {
+	if err := cl.Append(projectRoot, "", entry2); err != nil {
 		t.Fatalf("Second append failed: %v", err)
 	}
 
@@ -151,7 +151,7 @@ func TestChangelog_Append_ThirdEntry(t *testing.T) {
 			},
 		}
 
-		if err := cl.Append(projectRoot, entry); err != nil {
+		if err := cl.Append(projectRoot, "", entry); err != nil {
 			t.Fatalf("Append %d failed: %v", i, err)
 		}
 	}
@@ -205,7 +205,7 @@ func TestChangelog_Append_NoExistingFile(t *testing.T) {
 		},
 	}
 
-	if err := cl.Append(projectRoot, entry); err != nil {
+	if err := cl.Append(projectRoot, "", entry); err != nil {
 		t.Fatalf("Append failed: %v", err)
 	}
 
@@ -224,6 +224,51 @@ func TestChangelog_Append_NoExistingFile(t *testing.T) {
 
 	// Should have version entry
 	if !strings.Contains(content, "## 0.1.0 (2024-01-01)") {
+		t.Error("Should contain version entry")
+	}
+}
+
+func TestChangelog_Append_WithProjectName(t *testing.T) {
+	// Test first append when no file exists
+	fs := filesystem.NewMockFileSystem()
+	cl := NewChangelog(fs)
+	projectRoot := "/test/project"
+
+	fs.AddDir(projectRoot)
+
+	entry := &ChangelogEntry{
+		Version: &models.Version{Major: 0, Minor: 1, Patch: 0},
+		Date:    time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC),
+		Changesets: []*models.Changeset{
+			{
+				ID:      "initial",
+				Message: "Initial release",
+				Projects: map[string]models.BumpType{
+					"test": models.BumpMinor,
+				},
+			},
+		},
+	}
+
+	if err := cl.Append(projectRoot, "auth", entry); err != nil {
+		t.Fatalf("Append failed: %v", err)
+	}
+
+	changelogPath := filepath.Join(projectRoot, "CHANGELOG.md")
+	data, err := fs.ReadFile(changelogPath)
+	if err != nil {
+		t.Fatalf("Failed to read changelog: %v", err)
+	}
+
+	content := string(data)
+
+	// Should have header
+	if !strings.HasPrefix(content, "# Changelog\n\n") {
+		t.Error("Changelog should start with header")
+	}
+
+	// Should have version entry
+	if !strings.Contains(content, "## auth@0.1.0 (2024-01-01)") {
 		t.Error("Should contain version entry")
 	}
 }

@@ -93,7 +93,7 @@ func splitMessage(message string) (string, []string) {
 			if strings.TrimSpace(lines[i]) == "" {
 				continue
 			}
-			rest = append(rest, lines[i])
+			rest = append(rest, strings.TrimSpace(lines[i]))
 		}
 	}
 

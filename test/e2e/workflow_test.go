@@ -105,7 +105,7 @@ func TestFullWorkflow(t *testing.T) {
 		Changesets: authChangesets,
 	}
 
-	if err := changelogMgr.Append(authProject.RootPath, entry); err != nil {
+	if err := changelogMgr.Append(authProject.RootPath, "auth", entry); err != nil {
 		t.Fatalf("failed to append to changelog: %v", err)
 	}
 
@@ -334,7 +334,7 @@ func TestVersionPublishWithGitTags(t *testing.T) {
 		Date:       time.Now(),
 		Changesets: projectChangesets,
 	}
-	changelog.Append(project.RootPath, entry)
+	changelog.Append(project.RootPath, "auth", entry)
 
 	// Delete changesets
 	for _, cs := range projectChangesets {

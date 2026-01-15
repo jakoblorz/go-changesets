@@ -16,13 +16,12 @@ import (
 
 const changelogFileName = "CHANGELOG.md"
 
-const defaultChangelogTemplate = `{{- if .Version}}## {{.Version}} ({{.Date}})
-{{end}}
+const defaultChangelogTemplate = `{{- if .Version}}## {{if .Project}}{{.Project}}@{{end}}{{.Version}} ({{.Date}})
+{{end -}}
 {{range $index, $section := .Sections}}### {{$section.Title}}
 {{range $section.Items}}
-- {{.FirstLine}}{{if .PR}} ([#{{.PR.Number}}]({{.PR.URL}}) by @{{.PR.Author}}){{end}}{{if .RestLines}}
-{{range .RestLines}}  {{.}}
-{{end}}{{end}}{{end}}
+- {{.FirstLine}}{{if .PR}} ([#{{.PR.Number}}]({{.PR.URL}}) by @{{.PR.Author}}){{end}}{{- if .RestLines}}{{range .RestLines}}
+    {{.}}{{end}}{{end}}{{end}}
 
 {{end}}`
 
@@ -101,7 +100,7 @@ type ChangelogEntry struct {
 }
 
 // Append adds a new entry to the changelog
-func (cl *Changelog) Append(projectRoot string, entry *ChangelogEntry) error {
+func (cl *Changelog) Append(projectRoot string, projectName string, entry *ChangelogEntry) error {
 	changelogPath := filepath.Join(projectRoot, changelogFileName)
 
 	var existingContent string
@@ -113,7 +112,7 @@ func (cl *Changelog) Append(projectRoot string, entry *ChangelogEntry) error {
 		existingContent = string(data)
 	}
 
-	newEntry, err := cl.formatEntry(entry, projectRoot)
+	newEntry, err := cl.formatEntry(entry, projectName, projectRoot)
 	if err != nil {
 		return err
 	}
@@ -138,8 +137,8 @@ func (cl *Changelog) Append(projectRoot string, entry *ChangelogEntry) error {
 		buf.WriteString("All notable changes to this project will be documented in this file.\n\n")
 	}
 
-	buf.WriteString(newEntry)
 	buf.WriteString("\n")
+	buf.WriteString(newEntry)
 
 	if strings.Contains(existingContent, "# Changelog") {
 		lines := strings.Split(existingContent, "\n")
@@ -165,8 +164,8 @@ func (cl *Changelog) FormatEntry(changesets []*models.Changeset, projectName, pr
 	return cl.formatWithTemplate(changesets, projectName, projectRoot, "", time.Time{})
 }
 
-func (cl *Changelog) formatEntry(entry *ChangelogEntry, projectRoot string) (string, error) {
-	return cl.formatWithTemplate(entry.Changesets, "", projectRoot, entry.Version.String(), entry.Date)
+func (cl *Changelog) formatEntry(entry *ChangelogEntry, projectName, projectRoot string) (string, error) {
+	return cl.formatWithTemplate(entry.Changesets, projectName, projectRoot, entry.Version.String(), entry.Date)
 }
 
 func (cl *Changelog) formatWithTemplate(changesets []*models.Changeset, projectName, projectRoot, version string, date time.Time) (string, error) {
@@ -190,7 +189,7 @@ func (cl *Changelog) formatWithTemplate(changesets []*models.Changeset, projectN
 		return "", fmt.Errorf("failed to execute changelog template: %w", err)
 	}
 
-	return strings.TrimSpace(buf.String()), nil
+	return buf.String(), nil
 }
 
 type changelogTemplateData struct {
@@ -273,9 +272,9 @@ func (cl *Changelog) GetEntryForVersion(projectRoot string, version *models.Vers
 
 	endIdx := strings.Index(content[startIdx+len(versionHeader):], "\n## ")
 	if endIdx == -1 {
-		return strings.TrimSpace(content[startIdx:]), nil
+		return content[startIdx:], nil
 	}
 
 	endIdx += startIdx + len(versionHeader)
-	return strings.TrimSpace(content[startIdx:endIdx]), nil
+	return content[startIdx:endIdx], nil
 }
