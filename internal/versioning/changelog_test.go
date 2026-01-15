@@ -3,6 +3,7 @@ package versioning
 import (
 	"path/filepath"
 	"testing"
+	"text/template"
 	"time"
 
 	"github.com/gkampitakis/go-snaps/snaps"
@@ -453,4 +454,10 @@ func TestChangelog_Append(t *testing.T) {
 		runTestCase(t, "test")
 	})
 
+}
+
+func resetChangelogTemplateCache() {
+	templateCacheLock.Lock()
+	defer templateCacheLock.Unlock()
+	templateCache = make(map[string]*template.Template)
 }

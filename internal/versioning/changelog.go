@@ -29,12 +29,6 @@ var (
 	templateCacheLock sync.Mutex
 )
 
-func resetChangelogTemplateCache() {
-	templateCacheLock.Lock()
-	defer templateCacheLock.Unlock()
-	templateCache = make(map[string]*template.Template)
-}
-
 func getChangelogTemplate(fs filesystem.FileSystem, projectRoot string) (*template.Template, error) {
 	path := findCustomTemplate(fs, projectRoot)
 	cacheKey := path
