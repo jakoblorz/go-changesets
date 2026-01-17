@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/jakoblorz/go-changesets/internal/changelog"
 	"github.com/jakoblorz/go-changesets/internal/filesystem"
 	"github.com/jakoblorz/go-changesets/internal/git"
 	"github.com/jakoblorz/go-changesets/internal/github"
@@ -127,7 +128,7 @@ func (c *PublishCommand) Run(cmd *cobra.Command, args []string) error {
 			return nil
 		}
 
-		changelog := versioning.NewChangelog(c.fs)
+		changelog := changelog.NewChangelog(c.fs)
 		changelogEntry, err := changelog.GetEntryForVersion(resolved.Project.RootPath, fileVersion)
 		if err != nil {
 			fmt.Printf("⚠️  Warning: could not read changelog entry: %v\n", err)
@@ -188,7 +189,7 @@ func (c *PublishCommand) getLatestTagVersion(projectName string) (*models.Versio
 }
 
 func (c *PublishCommand) getChangelogForVersion(projectRoot string, version *models.Version) (string, error) {
-	changelog := versioning.NewChangelog(c.fs)
+	changelog := changelog.NewChangelog(c.fs)
 	return changelog.GetEntryForVersion(projectRoot, version)
 }
 

@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/jakoblorz/go-changesets/internal/changelog"
 	"github.com/jakoblorz/go-changesets/internal/changeset"
 	"github.com/jakoblorz/go-changesets/internal/filesystem"
 	"github.com/jakoblorz/go-changesets/internal/git"
@@ -125,7 +126,7 @@ func (b *projectContextBuilder) Build(ws *workspace.Workspace) ([]*models.Projec
 		ctx.IsOutdated = currentVer.Compare(latestVer) > 0
 
 		if len(projectChangesets) > 0 {
-			changelog := versioning.NewChangelog(b.fs)
+			changelog := changelog.NewChangelog(b.fs)
 			preview, err := changelog.FormatEntry(projectChangesets, project.Name, project.RootPath)
 			if err != nil {
 				return nil, fmt.Errorf("failed to format changelog preview for %s: %w", project.Name, err)

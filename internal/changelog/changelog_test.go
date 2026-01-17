@@ -1,4 +1,4 @@
-package versioning
+package changelog
 
 import (
 	"path/filepath"
@@ -290,7 +290,7 @@ func TestChangelog_CustomTemplateOverride(t *testing.T) {
 	fs.AddFile("/workspace/.changeset/changelog.tmpl", []byte(templateContent))
 
 	cl := NewChangelog(fs)
-	entry := &ChangelogEntry{
+	entry := &Entry{
 		Version:    &models.Version{Major: 1, Minor: 2, Patch: 3},
 		Date:       time.Date(2024, 12, 6, 0, 0, 0, 0, time.UTC),
 		Changesets: []*models.Changeset{},
@@ -346,7 +346,7 @@ func TestChangelog_Format_Append_withPRDetails(t *testing.T) {
 		fs := filesystem.NewMockFileSystem()
 		changelog := NewChangelog(fs)
 
-		rootEntry := &ChangelogEntry{
+		rootEntry := &Entry{
 			Version:    &models.Version{Major: 2, Minor: 0, Patch: 0},
 			Date:       time.Date(2024, 12, 6, 0, 0, 0, 0, time.UTC),
 			Changesets: changesets,
@@ -364,7 +364,7 @@ func TestChangelog_Format_Append_withPRDetails(t *testing.T) {
 		fs := filesystem.NewMockFileSystem()
 		changelog := NewChangelog(fs)
 
-		rootEntry := &ChangelogEntry{
+		rootEntry := &Entry{
 			Version:    &models.Version{Major: 2, Minor: 0, Patch: 0},
 			Date:       time.Date(2024, 12, 6, 0, 0, 0, 0, time.UTC),
 			Changesets: changesets,
@@ -390,7 +390,7 @@ func TestChangelog_Append(t *testing.T) {
 
 		fs.AddDir(projectRoot)
 
-		renderChangelogEntry := func(entry *ChangelogEntry) string {
+		renderChangelogEntry := func(entry *Entry) string {
 			err := cl.Append(projectRoot, projectName, entry)
 			require.NoError(t, err, "append should not error")
 
@@ -401,7 +401,7 @@ func TestChangelog_Append(t *testing.T) {
 		}
 
 		// First append - should add header
-		snaps.MatchSnapshot(t, renderChangelogEntry(&ChangelogEntry{
+		snaps.MatchSnapshot(t, renderChangelogEntry(&Entry{
 			Version: &models.Version{Major: 1, Minor: 0, Patch: 0},
 			Date:    time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC),
 			Changesets: []*models.Changeset{
@@ -416,7 +416,7 @@ func TestChangelog_Append(t *testing.T) {
 		}))
 
 		// Second append - should preserve header
-		snaps.MatchSnapshot(t, renderChangelogEntry(&ChangelogEntry{
+		snaps.MatchSnapshot(t, renderChangelogEntry(&Entry{
 			Version: &models.Version{Major: 1, Minor: 1, Patch: 0},
 			Date:    time.Date(2024, 2, 1, 0, 0, 0, 0, time.UTC),
 			Changesets: []*models.Changeset{
@@ -431,7 +431,7 @@ func TestChangelog_Append(t *testing.T) {
 		}))
 
 		// Third append - should contain project name in version header
-		snaps.MatchSnapshot(t, renderChangelogEntry(&ChangelogEntry{
+		snaps.MatchSnapshot(t, renderChangelogEntry(&Entry{
 			Version: &models.Version{Major: 1, Minor: 1, Patch: 1},
 			Date:    time.Date(2024, 2, 1, 0, 0, 0, 0, time.UTC),
 			Changesets: []*models.Changeset{

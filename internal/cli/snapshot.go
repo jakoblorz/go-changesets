@@ -5,12 +5,12 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/jakoblorz/go-changesets/internal/changelog"
 	"github.com/jakoblorz/go-changesets/internal/changeset"
 	"github.com/jakoblorz/go-changesets/internal/filesystem"
 	"github.com/jakoblorz/go-changesets/internal/git"
 	"github.com/jakoblorz/go-changesets/internal/github"
 	"github.com/jakoblorz/go-changesets/internal/models"
-	"github.com/jakoblorz/go-changesets/internal/versioning"
 	"github.com/spf13/cobra"
 )
 
@@ -108,7 +108,7 @@ func (c *SnapshotCommand) Run(cmd *cobra.Command, args []string) error {
 
 	fmt.Printf("Creating snapshot tag: %s\n", tag)
 
-	changelog := versioning.NewChangelog(c.fs)
+	changelog := changelog.NewChangelog(c.fs)
 	summary, err := changelog.FormatEntry(projectChangesets, resolved.Project.Name, resolved.Project.RootPath)
 	if err != nil {
 		return fmt.Errorf("failed to format changelog entry: %w", err)

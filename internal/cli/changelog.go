@@ -3,9 +3,9 @@ package cli
 import (
 	"fmt"
 
+	"github.com/jakoblorz/go-changesets/internal/changelog"
 	"github.com/jakoblorz/go-changesets/internal/changeset"
 	"github.com/jakoblorz/go-changesets/internal/filesystem"
-	"github.com/jakoblorz/go-changesets/internal/versioning"
 	"github.com/spf13/cobra"
 )
 
@@ -66,7 +66,7 @@ func (c *ChangelogCommand) Run(cmd *cobra.Command, args []string) error {
 		return nil
 	}
 
-	changelog := versioning.NewChangelog(c.fs)
+	changelog := changelog.NewChangelog(c.fs)
 	preview, err := changelog.FormatEntry(projectChangesets, resolved.Project.Name, resolved.Project.RootPath)
 	if err != nil {
 		return fmt.Errorf("failed to format changelog preview: %w", err)

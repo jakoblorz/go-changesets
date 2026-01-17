@@ -5,9 +5,9 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/jakoblorz/go-changesets/internal/changelog"
 	"github.com/jakoblorz/go-changesets/internal/changeset"
 	"github.com/jakoblorz/go-changesets/internal/models"
-	"github.com/jakoblorz/go-changesets/internal/versioning"
 	"github.com/jakoblorz/go-changesets/internal/workspace"
 	"github.com/jakoblorz/go-changesets/test/testutil"
 )
@@ -48,9 +48,9 @@ func TestChangelogPreview_InProjectContext(t *testing.T) {
 		t.Fatalf("expected 2 auth changesets, got %d", len(authChangesets))
 	}
 
-	changelog := versioning.NewChangelog(fs)
+	cl := changelog.NewChangelog(fs)
 	authProject, _ := ws.GetProject("auth")
-	authPreview, err := changelog.FormatEntry(authChangesets, "auth", authProject.RootPath)
+	authPreview, err := cl.FormatEntry(authChangesets, "auth", authProject.RootPath)
 	if err != nil {
 		t.Fatalf("failed to format auth preview: %v", err)
 	}
@@ -98,9 +98,9 @@ This change includes:
 	}
 
 	authChangesets := csManager.FilterByProject(allChangesets, "auth")
-	changelog := versioning.NewChangelog(fs)
+	cl := changelog.NewChangelog(fs)
 	authProject, _ := ws.GetProject("auth")
-	preview, err := changelog.FormatEntry(authChangesets, "auth", authProject.RootPath)
+	preview, err := cl.FormatEntry(authChangesets, "auth", authProject.RootPath)
 	if err != nil {
 		t.Fatalf("failed to format preview: %v", err)
 	}
@@ -154,8 +154,8 @@ func TestChangelogPreview_ContextIntegration(t *testing.T) {
 	// Generate changelog preview
 	var changelogPreview string
 	if len(projectChangesets) > 0 {
-		changelog := versioning.NewChangelog(fs)
-		changelogPreview, err = changelog.FormatEntry(projectChangesets, project.Name, project.RootPath)
+		cl := changelog.NewChangelog(fs)
+		changelogPreview, err = cl.FormatEntry(projectChangesets, project.Name, project.RootPath)
 		if err != nil {
 			t.Fatalf("failed to format changelog preview: %v", err)
 		}
@@ -226,9 +226,9 @@ func TestChangelogPreview_OrderByBumpType(t *testing.T) {
 	}
 
 	authChangesets := csManager.FilterByProject(allChangesets, "auth")
-	changelog := versioning.NewChangelog(fs)
+	cl := changelog.NewChangelog(fs)
 	authProject, _ := ws.GetProject("auth")
-	preview, err := changelog.FormatEntry(authChangesets, "auth", authProject.RootPath)
+	preview, err := cl.FormatEntry(authChangesets, "auth", authProject.RootPath)
 	if err != nil {
 		t.Fatalf("failed to format preview: %v", err)
 	}

@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/jakoblorz/go-changesets/internal/changelog"
 	"github.com/jakoblorz/go-changesets/internal/changeset"
 	"github.com/jakoblorz/go-changesets/internal/git"
 	"github.com/jakoblorz/go-changesets/internal/github"
@@ -98,14 +99,14 @@ func TestFullWorkflow(t *testing.T) {
 	}
 
 	// Test: Changelog generation
-	changelogMgr := versioning.NewChangelog(fs)
-	entry := &versioning.ChangelogEntry{
+	cl := changelog.NewChangelog(fs)
+	entry := &changelog.Entry{
 		Version:    newVersion,
 		Date:       time.Now(),
 		Changesets: authChangesets,
 	}
 
-	if err := changelogMgr.Append(authProject.RootPath, "auth", entry); err != nil {
+	if err := cl.Append(authProject.RootPath, "auth", entry); err != nil {
 		t.Fatalf("failed to append to changelog: %v", err)
 	}
 
@@ -328,13 +329,13 @@ func TestVersionPublishWithGitTags(t *testing.T) {
 	}
 
 	// Update changelog
-	changelog := versioning.NewChangelog(fs)
-	entry := &versioning.ChangelogEntry{
+	cl := changelog.NewChangelog(fs)
+	entry := &changelog.Entry{
 		Version:    newVersion,
 		Date:       time.Now(),
 		Changesets: projectChangesets,
 	}
-	changelog.Append(project.RootPath, "auth", entry)
+	cl.Append(project.RootPath, "auth", entry)
 
 	// Delete changesets
 	for _, cs := range projectChangesets {

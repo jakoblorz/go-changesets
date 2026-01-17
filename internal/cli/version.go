@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/jakoblorz/go-changesets/internal/changelog"
 	"github.com/jakoblorz/go-changesets/internal/changeset"
 	"github.com/jakoblorz/go-changesets/internal/filesystem"
 	"github.com/jakoblorz/go-changesets/internal/git"
@@ -107,26 +108,26 @@ func (c *VersionCommand) Run(cmd *cobra.Command, args []string) error {
 
 	fmt.Printf("✓ Updated %s/version.txt\n", resolved.Project.RootPath)
 
-	changelog := versioning.NewChangelog(c.fs)
-	entry := &versioning.ChangelogEntry{
+	cl := changelog.NewChangelog(c.fs)
+	entry := &changelog.Entry{
 		Version:    newVersion,
 		Date:       time.Now(),
 		Changesets: projectChangesets,
 	}
 
-	if err := changelog.Append(resolved.Project.RootPath, "", entry); err != nil {
+	if err := cl.Append(resolved.Project.RootPath, "", entry); err != nil {
 		return fmt.Errorf("failed to update changelog: %w", err)
 	}
 
 	fmt.Printf("✓ Updated %s/CHANGELOG.md\n\n", resolved.Project.RootPath)
 
 	if resolved.Workspace.RootPath != resolved.Project.RootPath {
-		rootEntry := &versioning.ChangelogEntry{
+		rootEntry := &changelog.Entry{
 			Version:    newVersion,
 			Date:       entry.Date,
 			Changesets: projectChangesets,
 		}
-		if err := changelog.Append(resolved.Workspace.RootPath, resolved.Project.Name, rootEntry); err != nil {
+		if err := cl.Append(resolved.Workspace.RootPath, resolved.Project.Name, rootEntry); err != nil {
 			return fmt.Errorf("failed to update root changelog: %w", err)
 		}
 
