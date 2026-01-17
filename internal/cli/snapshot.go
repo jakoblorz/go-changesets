@@ -112,21 +112,17 @@ func (c *SnapshotCommand) Run(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to format changelog entry: %w", err)
 	}
 
-	if c.git != nil {
-		if err := c.git.CreateTag(tag, summary); err != nil {
-			exists, _ := c.git.TagExists(tag)
-			if !exists {
-				return fmt.Errorf("failed to create tag: %w", err)
-			}
-			fmt.Printf("Tag already exists locally\n")
+	if err := c.git.CreateTag(tag, summary); err != nil {
+		exists, _ := c.git.TagExists(tag)
+		if !exists {
+			return fmt.Errorf("failed to create tag: %w", err)
 		}
+		fmt.Printf("Tag already exists locally\n")
+	}
 
-		fmt.Printf("Pushing tag to remote...\n")
-		if err := c.git.PushTag(tag); err != nil {
-			fmt.Printf("⚠️  Warning: failed to push tag: %v\n", err)
-		}
-	} else {
-		fmt.Printf("⚠️  Skipping git tag creation (no git client)\n")
+	fmt.Printf("Pushing tag to remote...\n")
+	if err := c.git.PushTag(tag); err != nil {
+		fmt.Printf("⚠️  Warning: failed to push tag: %v\n", err)
 	}
 
 	if c.ghClient == nil {

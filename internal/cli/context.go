@@ -269,11 +269,6 @@ func getLatestNonRCVersion(git git.GitClient, projectName string) (*models.Versi
 }
 
 func (c *gitOperator) EnrichChangesetsWithPRInfo(changesets []*models.Changeset, owner, repo string) error {
-	if c.git == nil {
-		fmt.Println("⚠️  Git client not available, skipping PR enrichment")
-		return nil
-	}
-
 	ghClient := c.ghClient
 	if ghClient == nil {
 		fmt.Printf("⚠️  GitHub client not authenticated; PR enrichment may fail for private/internal repos: %+v\n", github.ErrGitHubTokenNotFound)

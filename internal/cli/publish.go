@@ -89,22 +89,18 @@ func (c *PublishCommand) Run(cmd *cobra.Command, args []string) error {
 	tag := fmt.Sprintf("%s@%s", resolved.Name, fileVersion.Tag())
 	fmt.Printf("Creating git tag: %s\n", tag)
 
-	if c.git != nil {
-		changelogMsg, _ := c.getChangelogForVersion(resolved.Project.RootPath, fileVersion)
-		if err := c.git.CreateTag(tag, changelogMsg); err != nil {
-			exists, _ := c.git.TagExists(tag)
-			if !exists {
-				return fmt.Errorf("failed to create tag: %w", err)
-			}
-			fmt.Printf("Tag already exists locally\n")
+	changelogMsg, _ := c.getChangelogForVersion(resolved.Project.RootPath, fileVersion)
+	if err := c.git.CreateTag(tag, changelogMsg); err != nil {
+		exists, _ := c.git.TagExists(tag)
+		if !exists {
+			return fmt.Errorf("failed to create tag: %w", err)
 		}
+		fmt.Printf("Tag already exists locally\n")
+	}
 
-		fmt.Printf("Pushing tag to remote...\n")
-		if err := c.git.PushTag(tag); err != nil {
-			fmt.Printf("⚠️  Warning: failed to push tag: %v\n", err)
-		}
-	} else {
-		fmt.Printf("⚠️  Skipping git tag creation (no git client)\n")
+	fmt.Printf("Pushing tag to remote...\n")
+	if err := c.git.PushTag(tag); err != nil {
+		fmt.Printf("⚠️  Warning: failed to push tag: %v\n", err)
 	}
 
 	if c.ghClient == nil {
@@ -153,39 +149,6 @@ func (c *PublishCommand) Run(cmd *cobra.Command, args []string) error {
 	fmt.Printf("\n🎉 Successfully published %s@%s\n", resolved.Name, fileVersion.String())
 
 	return nil
-}
-
-func (c *PublishCommand) getLatestTagVersion(projectName string) (*models.Version, error) {
-	if c.git == nil {
-		return nil, fmt.Errorf("git client not available")
-	}
-
-	prefix := fmt.Sprintf("%s@v*", projectName)
-	tags, err := c.git.GetTagsWithPrefix(prefix)
-	if err != nil {
-		return nil, fmt.Errorf("failed to get tags: %w", err)
-	}
-
-	for _, tag := range tags {
-		rcNum, _ := c.git.ExtractRCNumber(tag)
-		if rcNum >= 0 {
-			continue
-		}
-
-		parts := strings.Split(tag, "@")
-		if len(parts) != 2 {
-			continue
-		}
-
-		version, err := models.ParseVersion(parts[1])
-		if err != nil {
-			continue
-		}
-
-		return version, nil
-	}
-
-	return nil, fmt.Errorf("no non-RC tags found")
 }
 
 func (c *PublishCommand) getChangelogForVersion(projectRoot string, version *models.Version) (string, error) {
