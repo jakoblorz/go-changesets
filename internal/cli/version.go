@@ -30,8 +30,8 @@ func NewVersionCommand(fs filesystem.FileSystem, gitClient git.GitClient, ghClie
 
 	cobraCmd := &cobra.Command{
 		Use:   "version",
-		Short: "Version a project based on changesets",
-		Long:  `Applies all changesets for a project, updates version.txt, the project's CHANGELOG.md and the CHANGELOG.md in the root of the workspace.`,
+		Short: "Version a project based on it's outstanding changesets",
+		Long:  `Applies all changesets for a project, updates version.txt, then edits project's CHANGELOG.md and the CHANGELOG.md in the root of the workspace.`,
 		RunE:  cmd.Run,
 	}
 
