@@ -71,6 +71,16 @@ func (m *Manager) ReadAll() ([]*models.Changeset, error) {
 	return changesets, nil
 }
 
+// ReadAllOfProject reads all changesets and filters for a specific project
+func (m *Manager) ReadAllOfProject(projectName string) ([]*models.Changeset, error) {
+	all, err := m.ReadAll()
+	if err != nil {
+		return nil, err
+	}
+
+	return FilterByProject(all, projectName), nil
+}
+
 // Read reads a single changeset file
 func (m *Manager) Read(filePath string) (*models.Changeset, error) {
 	data, err := m.fs.ReadFile(filePath)
@@ -162,11 +172,6 @@ func (m *Manager) Delete(changeset *models.Changeset) error {
 	}
 
 	return nil
-}
-
-// FilterByProject returns changesets that affect a specific project
-func (m *Manager) _FilterByProject(changesets []*models.Changeset, projectName string) []*models.Changeset {
-	return FilterByProject(changesets, projectName)
 }
 
 // GetHighestBump determines the highest bump type from multiple changesets

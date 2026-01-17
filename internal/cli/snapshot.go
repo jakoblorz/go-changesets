@@ -64,12 +64,10 @@ func (c *SnapshotCommand) Run(cmd *cobra.Command, args []string) error {
 	}
 
 	csManager := changeset.NewManager(c.fs, resolved.Workspace.ChangesetDir())
-	allChangesets, err := csManager.ReadAll()
+	projectChangesets, err := csManager.ReadAllOfProject(resolved.Name)
 	if err != nil {
 		return fmt.Errorf("failed to read changesets: %w", err)
 	}
-
-	projectChangesets := changeset.FilterByProject(allChangesets, resolved.Name)
 	if len(projectChangesets) == 0 {
 		return fmt.Errorf("no changesets found for project %s", resolved.Name)
 	}
