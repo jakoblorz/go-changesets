@@ -395,79 +395,62 @@ func TestChangelog_Append_withPRDetails(t *testing.T) {
 }
 
 func TestChangelog_Append(t *testing.T) {
-	runTestCase := func(t *testing.T, projectName string) {
-		fs := filesystem.NewMockFileSystem()
-		cl := NewChangelog(fs)
-
-		projectRoot := "/test/project"
-		changelogPath := filepath.Join(projectRoot, "CHANGELOG.md")
-
-		fs.AddDir(projectRoot)
-
-		renderChangelogEntry := func(entry *Entry) string {
-			err := cl.Append(projectRoot, projectName, entry)
-			require.NoError(t, err, "append should not error")
-
-			data, err := fs.ReadFile(changelogPath)
-			require.NoError(t, err, "read should not error")
-
-			return string(data)
-		}
-
-		// First append - should add header
-		snaps.MatchSnapshot(t, renderChangelogEntry(&Entry{
-			Version: &models.Version{Major: 1, Minor: 0, Patch: 0},
-			Date:    time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC),
-			Changesets: []*models.Changeset{
-				{
-					ID:      "first",
-					Message: "First change",
-					Projects: map[string]models.BumpType{
-						"test": models.BumpMinor,
-					},
-				},
-			},
-		}))
-
-		// Second append - should preserve header
-		snaps.MatchSnapshot(t, renderChangelogEntry(&Entry{
-			Version: &models.Version{Major: 1, Minor: 1, Patch: 0},
-			Date:    time.Date(2024, 2, 1, 0, 0, 0, 0, time.UTC),
-			Changesets: []*models.Changeset{
-				{
-					ID:      "second",
-					Message: "Second change",
-					Projects: map[string]models.BumpType{
-						"test": models.BumpMinor,
-					},
-				},
-			},
-		}))
-
-		// Third append - should contain project name in version header
-		snaps.MatchSnapshot(t, renderChangelogEntry(&Entry{
-			Version: &models.Version{Major: 1, Minor: 1, Patch: 1},
-			Date:    time.Date(2024, 2, 1, 0, 0, 0, 0, time.UTC),
-			Changesets: []*models.Changeset{
-				{
-					ID:      "third",
-					Message: "Third change",
-					Projects: map[string]models.BumpType{
-						"test": models.BumpMinor,
-					},
-				},
-			},
-		}))
+	testCases := []struct {
+		name        string
+		projectName string
+	}{
+		{name: "global changelog", projectName: ""},
+		{name: "project changelog", projectName: "test"},
 	}
 
-	t.Run("should continously insert entries below the header", func(t *testing.T) {
-		runTestCase(t, "")
-	})
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			fs := filesystem.NewMockFileSystem()
+			cl := NewChangelog(fs)
 
-	t.Run("should include project name in version headers", func(t *testing.T) {
-		runTestCase(t, "test")
-	})
+			projectRoot := "/test/project"
+			changelogPath := filepath.Join(projectRoot, "CHANGELOG.md")
 
+			fs.AddDir(projectRoot)
+
+			renderChangelogEntry := func(entry *Entry) string {
+				t.Helper()
+
+				require.NoError(t, cl.Append(projectRoot, tc.projectName, entry))
+
+				data, err := fs.ReadFile(changelogPath)
+				require.NoError(t, err)
+				return string(data)
+			}
+
+			first := renderChangelogEntry(&Entry{
+				Version: &models.Version{Major: 1, Minor: 0, Patch: 0},
+				Date:    time.Date(2024, 1, 1, 0, 0, 0, 0, time.UTC),
+				Changesets: []*models.Changeset{
+					{ID: "first", Message: "First change", Projects: map[string]models.BumpType{"test": models.BumpMinor}},
+				},
+			})
+			snaps.MatchSnapshot(t, first)
+
+			second := renderChangelogEntry(&Entry{
+				Version: &models.Version{Major: 1, Minor: 1, Patch: 0},
+				Date:    time.Date(2024, 2, 1, 0, 0, 0, 0, time.UTC),
+				Changesets: []*models.Changeset{
+					{ID: "second", Message: "Second change", Projects: map[string]models.BumpType{"test": models.BumpMinor}},
+				},
+			})
+			snaps.MatchSnapshot(t, second)
+
+			third := renderChangelogEntry(&Entry{
+				Version: &models.Version{Major: 1, Minor: 1, Patch: 1},
+				Date:    time.Date(2024, 2, 1, 0, 0, 0, 0, time.UTC),
+				Changesets: []*models.Changeset{
+					{ID: "third", Message: "Third change", Projects: map[string]models.BumpType{"test": models.BumpMinor}},
+				},
+			})
+			snaps.MatchSnapshot(t, third)
+		})
+	}
 }
 
 func resetChangelogTemplateCache() {
