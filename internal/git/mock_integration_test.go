@@ -1,6 +1,4 @@
-//go:build integration
-
-package git_test
+package git
 
 import (
 	"os"
@@ -8,7 +6,6 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/jakoblorz/go-changesets/internal/git"
 	"github.com/stretchr/testify/require"
 )
 
@@ -27,7 +24,7 @@ func TestComparison_BasicTagOperations(t *testing.T) {
 	defer os.Chdir(originalDir)
 
 	// Setup mock git client
-	mockClient := git.NewMockGitClient()
+	mockClient := NewMockGitClient()
 
 	// Test 1: Create tag
 	osErr1 := osClient.CreateTag("backend@v1.0.0", "Release 1.0.0")
@@ -81,7 +78,7 @@ func TestComparison_WildcardPatterns(t *testing.T) {
 	os.Chdir(repoPath)
 	defer os.Chdir(originalDir)
 
-	mockClient := git.NewMockGitClient()
+	mockClient := NewMockGitClient()
 
 	// Create identical tags on both
 	tags := []struct {
@@ -131,7 +128,7 @@ func TestComparison_RCExtraction(t *testing.T) {
 	osClient, _, cleanup := setupTestRepo(t)
 	defer cleanup()
 
-	mockClient := git.NewMockGitClient()
+	mockClient := NewMockGitClient()
 
 	testCases := []string{
 		"backend@v1.2.0-rc0",
@@ -165,7 +162,7 @@ func TestComparison_TagSorting(t *testing.T) {
 	os.Chdir(repoPath)
 	defer os.Chdir(originalDir)
 
-	mockClient := git.NewMockGitClient()
+	mockClient := NewMockGitClient()
 
 	// Create tags in random order
 	tagOrder := []string{
@@ -210,7 +207,7 @@ func TestComparison_Annotations(t *testing.T) {
 	os.Chdir(repoPath)
 	defer os.Chdir(originalDir)
 
-	mockClient := git.NewMockGitClient()
+	mockClient := NewMockGitClient()
 
 	// Create tags with multiline messages
 	message := "Release 1.0.0\n\nChangelog:\n- Feature A\n- Feature B"
@@ -239,7 +236,7 @@ func TestComparison_MultipleProjects(t *testing.T) {
 	os.Chdir(repoPath)
 	defer os.Chdir(originalDir)
 
-	mockClient := git.NewMockGitClient()
+	mockClient := NewMockGitClient()
 
 	// Create tags for multiple projects
 	projects := []struct {
@@ -292,7 +289,7 @@ func TestComparison_FileCreationCommit(t *testing.T) {
 	os.Chdir(repoPath)
 	defer os.Chdir(originalDir)
 
-	mockClient := git.NewMockGitClient()
+	mockClient := NewMockGitClient()
 
 	// Create .changeset directory
 	os.MkdirAll(repoPath+"/.changeset", 0755)
@@ -362,7 +359,7 @@ func TestComparison_CommitMessage(t *testing.T) {
 	os.Chdir(repoPath)
 	defer os.Chdir(originalDir)
 
-	mockClient := git.NewMockGitClient()
+	mockClient := NewMockGitClient()
 
 	// Create commits with specific messages
 	createCommit(t, repoPath, "feat: add OAuth2 support")

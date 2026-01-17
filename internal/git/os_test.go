@@ -1,4 +1,4 @@
-package git_test
+package git
 
 import (
 	"os"
@@ -6,12 +6,11 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/jakoblorz/go-changesets/internal/git"
 	"github.com/stretchr/testify/require"
 )
 
 // setupTestRepo creates a temporary git repository for testing
-func setupTestRepo(t *testing.T) (*git.OSGitClient, string, func()) {
+func setupTestRepo(t *testing.T) (*OSGitClient, string, func()) {
 	t.Helper()
 
 	// Check if git is available
@@ -33,7 +32,7 @@ func setupTestRepo(t *testing.T) (*git.OSGitClient, string, func()) {
 	runGitCmd(t, tmpDir, "commit", "-m", "Initial commit")
 
 	// Create client
-	client := git.NewOSGitClient()
+	client := NewOSGitClient()
 
 	cleanup := func() {
 		// Temp directory is automatically cleaned up by t.TempDir()
