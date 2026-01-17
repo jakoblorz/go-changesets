@@ -78,8 +78,8 @@ func (c *SnapshotCommand) Run(cmd *cobra.Command, args []string) error {
 		fmt.Printf("  - %s (%s)\n", cs.ID, bump)
 	}
 
-	if c.ghClient != nil {
-		if err := c.enrichChangesetsWithPRInfo(projectChangesets, owner, repo); err != nil {
+	if owner != "" && repo != "" {
+		if err := enrichChangesetsWithPRInfo(c.git, c.ghClient, projectChangesets, owner, repo); err != nil {
 			return err
 		}
 	}
@@ -250,27 +250,4 @@ func (c *SnapshotCommand) findNextRCNumber(projectName string, version *models.V
 	}
 
 	return highestRC + 1, nil
-}
-
-func (c *SnapshotCommand) enrichChangesetsWithPRInfo(changesets []*models.Changeset, owner, repo string) error {
-	if c.git == nil {
-		fmt.Println("⚠️  Git client not available, skipping PR enrichment")
-		return nil
-	}
-
-	enricher := github.NewPREnricher(c.git, c.ghClient)
-	res, err := enricher.Enrich(context.Background(), changesets, owner, repo)
-	if err != nil {
-		return fmt.Errorf("failed to enrich changesets with PR info: %w", err)
-	}
-
-	for _, warn := range res.Warnings {
-		fmt.Printf("⚠️  Warning: %v\n", warn)
-	}
-
-	if res.Enriched > 0 {
-		fmt.Printf("✓ Enriched %d changeset(s) with PR information\n\n", res.Enriched)
-	}
-
-	return nil
 }

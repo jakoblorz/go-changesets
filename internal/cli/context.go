@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -12,6 +13,7 @@ import (
 	"github.com/jakoblorz/go-changesets/internal/changeset"
 	"github.com/jakoblorz/go-changesets/internal/filesystem"
 	"github.com/jakoblorz/go-changesets/internal/git"
+	"github.com/jakoblorz/go-changesets/internal/github"
 	"github.com/jakoblorz/go-changesets/internal/models"
 	"github.com/jakoblorz/go-changesets/internal/versioning"
 	"github.com/jakoblorz/go-changesets/internal/workspace"
@@ -246,4 +248,45 @@ func readProjectContextFromStdin() (*models.ProjectContext, error) {
 	}
 
 	return &ctx, nil
+}
+
+type gitOperator struct {
+	git      git.GitClient
+	ghClient github.GitHubClient
+}
+
+func enrichChangesetsWithPRInfo(git git.GitClient, ghClient github.GitHubClient, changesets []*models.Changeset, owner, repo string) error {
+	return (&gitOperator{
+		git:      git,
+		ghClient: ghClient,
+	}).EnrichChangesetsWithPRInfo(changesets, owner, repo)
+}
+
+func (c *gitOperator) EnrichChangesetsWithPRInfo(changesets []*models.Changeset, owner, repo string) error {
+	if c.git == nil {
+		fmt.Println("⚠️  Git client not available, skipping PR enrichment")
+		return nil
+	}
+
+	ghClient := c.ghClient
+	if ghClient == nil {
+		fmt.Printf("⚠️  GitHub client not authenticated; PR enrichment may fail for private/internal repos: %+v\n", github.ErrGitHubTokenNotFound)
+		ghClient = github.NewClientWithoutAuth()
+	}
+
+	enricher := github.NewPREnricher(c.git, ghClient)
+	res, err := enricher.Enrich(context.Background(), changesets, owner, repo)
+	if err != nil {
+		return fmt.Errorf("failed to enrich changesets with PR info: %w", err)
+	}
+
+	for _, warn := range res.Warnings {
+		fmt.Printf("⚠️  Warning: %v\n", warn)
+	}
+
+	if res.Enriched > 0 {
+		fmt.Printf("✓ Enriched %d changeset(s) with PR information\n\n", res.Enriched)
+	}
+
+	return nil
 }
