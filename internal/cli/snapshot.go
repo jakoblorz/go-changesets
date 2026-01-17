@@ -31,16 +31,14 @@ func NewSnapshotCommand(fs filesystem.FileSystem, gitClient git.GitClient, ghCli
 
 	cobraCmd := &cobra.Command{
 		Use:   "snapshot",
-		Short: "Create a release candidate (RC) snapshot",
-		Long:  `Creates a pre-release snapshot with an -rc{N} suffix. Does not modify changesets or version files.`,
+		Short: "Creates & pushes a new release candidate (RC) git tag; Optionally creates a release on GitHub",
+		Long:  `Creates & pushes a new pre-release candidate git tag with an -rc{N} suffix; Optionally creates a release on GitHub. Does not modify changesets or version files.`,
 		RunE:  cmd.Run,
 	}
 
 	cobraCmd.Flags().StringP("project", "p", "", "Project name to snapshot (required unless run via 'changeset each')")
-	cobraCmd.Flags().StringP("owner", "o", "", "GitHub repository owner (required)")
-	cobraCmd.Flags().StringP("repo", "r", "", "GitHub repository name (required)")
-	cobraCmd.MarkFlagRequired("owner")
-	cobraCmd.MarkFlagRequired("repo")
+	cobraCmd.Flags().StringP("owner", "o", "", "GitHub repository owner (optional, enables creating a release)")
+	cobraCmd.Flags().StringP("repo", "r", "", "GitHub repository name (optional, enables creating a release)")
 
 	return cobraCmd
 }
@@ -57,17 +55,6 @@ func (c *SnapshotCommand) Run(cmd *cobra.Command, args []string) error {
 			return fmt.Errorf("--project flag required (or run via 'changeset each'): %w", err)
 		}
 		return err
-	}
-
-	if owner == "" {
-		return fmt.Errorf("--owner flag required")
-	}
-	if repo == "" {
-		return fmt.Errorf("--repo flag required")
-	}
-
-	if c.ghClient == nil {
-		return fmt.Errorf("Authenticated GitHub client required to create a snapshot: %w", github.ErrGitHubTokenNotFound)
 	}
 
 	if resolved.ViaEach {
@@ -92,10 +79,11 @@ func (c *SnapshotCommand) Run(cmd *cobra.Command, args []string) error {
 		bump, _ := cs.GetBumpForProject(resolved.Name)
 		fmt.Printf("  - %s (%s)\n", cs.ID, bump)
 	}
-	fmt.Println()
 
-	if err := c.enrichChangesetsWithPRInfo(projectChangesets, owner, repo); err != nil {
-		return err
+	if c.ghClient != nil {
+		if err := c.enrichChangesetsWithPRInfo(projectChangesets, owner, repo); err != nil {
+			return err
+		}
 	}
 
 	highestBump := csManager.GetHighestBump(projectChangesets, resolved.Name)
@@ -127,7 +115,6 @@ func (c *SnapshotCommand) Run(cmd *cobra.Command, args []string) error {
 	}
 
 	if c.git != nil {
-
 		if err := c.git.CreateTag(tag, summary); err != nil {
 			exists, _ := c.git.TagExists(tag)
 			if !exists {
@@ -144,29 +131,43 @@ func (c *SnapshotCommand) Run(cmd *cobra.Command, args []string) error {
 		fmt.Printf("⚠️  Skipping git tag creation (no git client)\n")
 	}
 
-	ctx := context.Background()
-	existingRelease, err := c.ghClient.GetReleaseByTag(ctx, owner, repo, tag)
-	if err == nil && existingRelease != nil {
-		fmt.Printf("⚠️  Release %s already exists\n", tag)
-		fmt.Printf("Release URL: https://github.com/%s/%s/releases/tag/%s\n", owner, repo, tag)
-		return nil
+	if c.ghClient == nil {
+		if owner != "" || repo != "" {
+			return fmt.Errorf("--owner and --repo flags require a GitHub client: authenticated GitHub client required to create a snapshot: %w", github.ErrGitHubTokenNotFound)
+		}
 	}
+	if c.ghClient != nil {
+		if owner == "" {
+			return fmt.Errorf("--owner flag required")
+		}
+		if repo == "" {
+			return fmt.Errorf("--repo flag required")
+		}
 
-	fmt.Println("Creating GitHub pre-release...")
-	release, err := c.ghClient.CreateRelease(ctx, owner, repo, &github.CreateReleaseRequest{
-		TagName:    tag,
-		Name:       tag,
-		Body:       summary,
-		Prerelease: true,
-	})
-	if err != nil {
-		return fmt.Errorf("failed to create release: %w", err)
+		ctx := context.Background()
+		existingRelease, err := c.ghClient.GetReleaseByTag(ctx, owner, repo, tag)
+		if err == nil && existingRelease != nil {
+			fmt.Printf("⚠️  Release %s already exists\n", tag)
+			fmt.Printf("Release URL: https://github.com/%s/%s/releases/tag/%s\n", owner, repo, tag)
+			return nil
+		}
+
+		fmt.Println("Creating GitHub pre-release...")
+		_, err = c.ghClient.CreateRelease(ctx, owner, repo, &github.CreateReleaseRequest{
+			TagName:    tag,
+			Name:       tag,
+			Body:       summary,
+			Prerelease: true,
+		})
+		if err != nil {
+			return fmt.Errorf("failed to create release: %w", err)
+		}
+
+		fmt.Printf("Release URL: https://github.com/%s/%s/releases/tag/%s\n", owner, repo, tag)
 	}
 
 	fmt.Printf("\n🎉 Successfully created snapshot %s@%s\n", resolved.Name, rcVersion.String())
-	fmt.Printf("Release URL: https://github.com/%s/%s/releases/tag/%s\n", owner, repo, tag)
 
-	_ = release
 	return nil
 }
 
@@ -259,7 +260,7 @@ func (c *SnapshotCommand) enrichChangesetsWithPRInfo(changesets []*models.Change
 		return nil
 	}
 
-	enricher := changeset.NewPREnricher(c.git, c.ghClient)
+	enricher := github.NewPREnricher(c.git, c.ghClient)
 	res, err := enricher.Enrich(context.Background(), changesets, owner, repo)
 	if err != nil {
 		return fmt.Errorf("failed to enrich changesets with PR info: %w", err)

@@ -1,17 +1,16 @@
-package changeset
+package github
 
 import (
 	"context"
 	"fmt"
 
 	"github.com/jakoblorz/go-changesets/internal/git"
-	"github.com/jakoblorz/go-changesets/internal/github"
 	"github.com/jakoblorz/go-changesets/internal/models"
 )
 
 type PREnricher struct {
 	git git.GitClient
-	gh  github.GitHubClient
+	gh  GitHubClient
 }
 
 type PREnrichmentResult struct {
@@ -19,7 +18,7 @@ type PREnrichmentResult struct {
 	Warnings []error
 }
 
-func NewPREnricher(gitClient git.GitClient, ghClient github.GitHubClient) *PREnricher {
+func NewPREnricher(gitClient git.GitClient, ghClient GitHubClient) *PREnricher {
 	return &PREnricher{git: gitClient, gh: ghClient}
 }
 
@@ -67,7 +66,7 @@ func (e *PREnricher) Enrich(ctx context.Context, changesets []*models.Changeset,
 	return result, nil
 }
 
-func selectBestPR(prs []*github.PullRequest, commitSHA string) *github.PullRequest {
+func selectBestPR(prs []*PullRequest, commitSHA string) *PullRequest {
 	if len(prs) == 0 {
 		return nil
 	}

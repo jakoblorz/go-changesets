@@ -30,16 +30,14 @@ func NewPublishCommand(fs filesystem.FileSystem, gitClient git.GitClient, ghClie
 
 	cobraCmd := &cobra.Command{
 		Use:   "publish",
-		Short: "Publish a project release to GitHub",
-		Long:  `Creates a GitHub release for a project based on its version file.`,
+		Short: "Creates & pushes the most recent git tag; Optionally creates a release on GitHub",
+		Long:  `Creates & pushes the most recent git tag; Optionally creates a release on GitHub.`,
 		RunE:  cmd.Run,
 	}
 
 	cobraCmd.Flags().StringP("project", "p", "", "Project name to publish (required unless run via 'changeset each')")
-	cobraCmd.Flags().StringP("owner", "o", "", "GitHub repository owner (required)")
-	cobraCmd.Flags().StringP("repo", "r", "", "GitHub repository name (required)")
-	cobraCmd.MarkFlagRequired("owner")
-	cobraCmd.MarkFlagRequired("repo")
+	cobraCmd.Flags().StringP("owner", "o", "", "GitHub repository owner (optional, enables creating a release)")
+	cobraCmd.Flags().StringP("repo", "r", "", "GitHub repository name (optional, enables creating a release)")
 
 	return cobraCmd
 }
@@ -62,17 +60,6 @@ func (c *PublishCommand) Run(cmd *cobra.Command, args []string) error {
 		fmt.Printf("📦 Publishing %s (via changeset each)\n\n", resolved.Name)
 	} else {
 		fmt.Printf("📦 Publishing project: %s\n\n", resolved.Name)
-	}
-
-	if owner == "" {
-		return fmt.Errorf("--owner flag required")
-	}
-	if repo == "" {
-		return fmt.Errorf("--repo flag required")
-	}
-
-	if c.ghClient == nil {
-		return fmt.Errorf("Authenticated GitHub client required for publishing: %w", github.ErrGitHubTokenNotFound)
 	}
 
 	versionStore := versioning.NewVersionStore(c.fs, resolved.Project.Type)
@@ -119,37 +106,51 @@ func (c *PublishCommand) Run(cmd *cobra.Command, args []string) error {
 		fmt.Printf("⚠️  Skipping git tag creation (no git client)\n")
 	}
 
-	ctx := context.Background()
-	existingRelease, err := c.ghClient.GetReleaseByTag(ctx, owner, repo, tag)
-	if err == nil && existingRelease != nil {
-		fmt.Printf("⚠️  Release %s already exists\n", tag)
+	if c.ghClient == nil {
+		if owner != "" || repo != "" {
+			return fmt.Errorf("--owner and --repo flags require a GitHub client: authenticated GitHub client required to create a release: %w", github.ErrGitHubTokenNotFound)
+		}
+	}
+	if c.ghClient != nil {
+		if owner == "" {
+			return fmt.Errorf("--owner flag required")
+		}
+		if repo == "" {
+			return fmt.Errorf("--repo flag required")
+		}
+
+		ctx := context.Background()
+		existingRelease, err := c.ghClient.GetReleaseByTag(ctx, owner, repo, tag)
+		if err == nil && existingRelease != nil {
+			fmt.Printf("⚠️  Release %s already exists\n", tag)
+			fmt.Printf("Release URL: https://github.com/%s/%s/releases/tag/%s\n", owner, repo, tag)
+			return nil
+		}
+
+		changelog := versioning.NewChangelog(c.fs)
+		changelogEntry, err := changelog.GetEntryForVersion(resolved.Project.RootPath, fileVersion)
+		if err != nil {
+			fmt.Printf("⚠️  Warning: could not read changelog entry: %v\n", err)
+			changelogEntry = fmt.Sprintf("Release %s", fileVersion.String())
+		}
+
+		releaseNotes := extractReleaseNotes(changelogEntry)
+
+		fmt.Println("Creating GitHub release...")
+		_, err = c.ghClient.CreateRelease(ctx, owner, repo, &github.CreateReleaseRequest{
+			TagName: tag,
+			Name:    tag,
+			Body:    releaseNotes,
+		})
+		if err != nil {
+			return fmt.Errorf("failed to create release: %w", err)
+		}
+
 		fmt.Printf("Release URL: https://github.com/%s/%s/releases/tag/%s\n", owner, repo, tag)
-		return nil
-	}
-
-	changelog := versioning.NewChangelog(c.fs)
-	changelogEntry, err := changelog.GetEntryForVersion(resolved.Project.RootPath, fileVersion)
-	if err != nil {
-		fmt.Printf("⚠️  Warning: could not read changelog entry: %v\n", err)
-		changelogEntry = fmt.Sprintf("Release %s", fileVersion.String())
-	}
-
-	releaseNotes := extractReleaseNotes(changelogEntry)
-
-	fmt.Println("Creating GitHub release...")
-	release, err := c.ghClient.CreateRelease(ctx, owner, repo, &github.CreateReleaseRequest{
-		TagName: tag,
-		Name:    tag,
-		Body:    releaseNotes,
-	})
-	if err != nil {
-		return fmt.Errorf("failed to create release: %w", err)
 	}
 
 	fmt.Printf("\n🎉 Successfully published %s@%s\n", resolved.Name, fileVersion.String())
-	fmt.Printf("Release URL: https://github.com/%s/%s/releases/tag/%s\n", owner, repo, tag)
 
-	_ = release
 	return nil
 }
 

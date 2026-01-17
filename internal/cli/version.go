@@ -32,7 +32,7 @@ func NewVersionCommand(fs filesystem.FileSystem, gitClient git.GitClient, ghClie
 	cobraCmd := &cobra.Command{
 		Use:   "version",
 		Short: "Version a project based on changesets",
-		Long:  `Applies all changesets for a project, updates version.txt and CHANGELOG.md.`,
+		Long:  `Applies all changesets for a project, updates version.txt, the project's CHANGELOG.md and the CHANGELOG.md in the root of the workspace.`,
 		RunE:  cmd.Run,
 	}
 
@@ -80,7 +80,6 @@ func (c *VersionCommand) Run(cmd *cobra.Command, args []string) error {
 		bump, _ := cs.GetBumpForProject(resolved.Name)
 		fmt.Printf("  - %s (%s)\n", cs.ID, bump)
 	}
-	fmt.Println()
 
 	if owner != "" && repo != "" {
 		if err := c.enrichChangesetsWithPRInfo(projectChangesets, owner, repo); err != nil {
@@ -153,12 +152,13 @@ func (c *VersionCommand) enrichChangesetsWithPRInfo(changesets []*models.Changes
 		return nil
 	}
 
-	if c.ghClient == nil {
+	ghClient := c.ghClient
+	if ghClient == nil {
 		fmt.Printf("⚠️  GitHub client not authenticated; PR enrichment may fail for private/internal repos: %+v\n", github.ErrGitHubTokenNotFound)
-		c.ghClient = github.NewClientWithoutAuth()
+		ghClient = github.NewClientWithoutAuth()
 	}
 
-	enricher := changeset.NewPREnricher(c.git, c.ghClient)
+	enricher := github.NewPREnricher(c.git, ghClient)
 	res, err := enricher.Enrich(context.Background(), changesets, owner, repo)
 	if err != nil {
 		return fmt.Errorf("failed to enrich changesets with PR info: %w", err)
