@@ -1,14 +1,12 @@
-package git_test
+package git
 
 import (
 	"fmt"
 	"testing"
-
-	"github.com/jakoblorz/go-changesets/internal/git"
 )
 
 func TestMockGitClient_TagOperations(t *testing.T) {
-	mock := git.NewMockGitClient()
+	mock := NewMockGitClient()
 
 	// Test adding tags
 	mock.AddTag("auth", "1.0.0", "Initial release")
@@ -41,7 +39,7 @@ func TestMockGitClient_TagOperations(t *testing.T) {
 }
 
 func TestMockGitClient_CreateAndPushTag(t *testing.T) {
-	mock := git.NewMockGitClient()
+	mock := NewMockGitClient()
 
 	// Create a tag
 	err := mock.CreateTag("auth@v1.0.0", "Release 1.0.0")
@@ -78,7 +76,7 @@ func TestMockGitClient_CreateAndPushTag(t *testing.T) {
 }
 
 func TestMockGitClient_PushedTags(t *testing.T) {
-	mock := git.NewMockGitClient()
+	mock := NewMockGitClient()
 
 	// Add local and pushed tags
 	mock.AddTag("auth", "1.0.0", "Local only")
@@ -108,7 +106,7 @@ func TestMockGitClient_PushedTags(t *testing.T) {
 }
 
 func TestMockGitClient_TagAnnotation(t *testing.T) {
-	mock := git.NewMockGitClient()
+	mock := NewMockGitClient()
 
 	mock.AddTag("auth", "1.0.0", "This is the release message")
 
@@ -128,7 +126,7 @@ func TestMockGitClient_TagAnnotation(t *testing.T) {
 }
 
 func TestMockGitClient_RepoOperations(t *testing.T) {
-	mock := git.NewMockGitClient()
+	mock := NewMockGitClient()
 
 	// Default is a git repo
 	isRepo, err := mock.IsGitRepo()
@@ -169,7 +167,7 @@ func TestMockGitClient_RepoOperations(t *testing.T) {
 }
 
 func TestMockGitClient_Reset(t *testing.T) {
-	mock := git.NewMockGitClient()
+	mock := NewMockGitClient()
 
 	// Add some data
 	mock.AddTag("auth", "1.0.0", "Release")
@@ -197,7 +195,7 @@ func TestMockGitClient_Reset(t *testing.T) {
 }
 
 func TestMockGitClient_ErrorScenarios(t *testing.T) {
-	mock := git.NewMockGitClient()
+	mock := NewMockGitClient()
 
 	// Set error hooks
 	mock.GetLatestTagError = fmt.Errorf("simulated error")
@@ -223,7 +221,7 @@ func TestMockGitClient_ErrorScenarios(t *testing.T) {
 // Tests matching OS implementation behavior
 
 func TestMockGit_BasicTagOperationsWithGraph(t *testing.T) {
-	mock := git.NewMockGitClient()
+	mock := NewMockGitClient()
 
 	// Create a tag at initial commit
 	err := mock.CreateTag("backend@v1.0.0", "Release 1.0.0")
@@ -267,7 +265,7 @@ func TestMockGit_BasicTagOperationsWithGraph(t *testing.T) {
 }
 
 func TestMockGit_WildcardPatternMatchingWithGraph(t *testing.T) {
-	mock := git.NewMockGitClient()
+	mock := NewMockGitClient()
 
 	// Create tags for different projects
 	mock.CreateTag("backend@v1.0.0", "backend 1.0.0")
@@ -307,7 +305,7 @@ func TestMockGit_WildcardPatternMatchingWithGraph(t *testing.T) {
 }
 
 func TestMockGit_BranchDivergence(t *testing.T) {
-	mock := git.NewMockGitClient()
+	mock := NewMockGitClient()
 
 	// Main: Initial → A → B
 	mock.CreateCommit("commit_A")
@@ -374,7 +372,7 @@ func TestMockGit_BranchDivergence(t *testing.T) {
 }
 
 func TestMockGit_RCTagFilteringWithGraph(t *testing.T) {
-	mock := git.NewMockGitClient()
+	mock := NewMockGitClient()
 
 	// Create RC tags and final release
 	mock.CreateTag("backend@v1.2.0-rc0", "RC 0")
@@ -414,7 +412,7 @@ func TestMockGit_RCTagFilteringWithGraph(t *testing.T) {
 }
 
 func TestMockGit_MultipleRCIncrementsWithGraph(t *testing.T) {
-	mock := git.NewMockGitClient()
+	mock := NewMockGitClient()
 
 	// Create first RC
 	mock.CreateTag("backend@v1.3.0-rc0", "First RC")
@@ -462,7 +460,7 @@ func TestMockGit_MultipleRCIncrementsWithGraph(t *testing.T) {
 }
 
 func TestMockGit_CanaryWorkflowComplete(t *testing.T) {
-	mock := git.NewMockGitClient()
+	mock := NewMockGitClient()
 
 	// Main: Initial → v1.0.0
 	mock.CreateCommit("main_v1.0.0")
@@ -546,7 +544,7 @@ func TestMockGit_CanaryWorkflowComplete(t *testing.T) {
 }
 
 func TestMockGit_MergeMainIntoCanary(t *testing.T) {
-	mock := git.NewMockGitClient()
+	mock := NewMockGitClient()
 
 	// Main: Initial → A (tag v1.0.0)
 	mock.CreateCommit("commit_A")
@@ -598,7 +596,7 @@ func TestMockGit_MergeMainIntoCanary(t *testing.T) {
 }
 
 func TestMockGit_CommitGraphOperations(t *testing.T) {
-	mock := git.NewMockGitClient()
+	mock := NewMockGitClient()
 
 	// Test CreateCommit returns unique hashes
 	hash1 := mock.CreateCommit("Commit 1")
@@ -669,7 +667,7 @@ func TestMockGit_CommitGraphOperations(t *testing.T) {
 }
 
 func TestMockGit_TagAnnotationsWithGraph(t *testing.T) {
-	mock := git.NewMockGitClient()
+	mock := NewMockGitClient()
 
 	message := "Release 1.0.0\n\nThis is a test release\nwith multiple lines"
 	mock.CreateTag("backend@v1.0.0", message)

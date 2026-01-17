@@ -123,12 +123,12 @@ Key IO interfaces:
 
 ## Testing Guidelines
 
-- Tests should not use the real filesystem or network.
+- Unit Tests should not use the real filesystem or network.
 - Prefer in-memory mocks:
   - `filesystem.NewMockFileSystem()`
   - `git.NewMockGitClient()`
   - `github.NewMockGitHubClient()`
-- Prefer `test/testutil.WorkspaceBuilder` for end-to-end style tests.
+- Prefer `internal/workspace/workspace_builder` for end-to-end / workflow style tests.
 
 When adding tests:
 

@@ -10,13 +10,12 @@ import (
 	"github.com/jakoblorz/go-changesets/internal/github"
 	"github.com/jakoblorz/go-changesets/internal/versioning"
 	"github.com/jakoblorz/go-changesets/internal/workspace"
-	"github.com/jakoblorz/go-changesets/test/testutil"
 	"github.com/spf13/cobra"
 )
 
 func TestSnapshotWorkflow(t *testing.T) {
 	// Setup mock workspace with changesets
-	wb := testutil.NewWorkspaceBuilder("/test-workspace")
+	wb := workspace.NewWorkspaceBuilder("/test-workspace")
 	wb.AddProject("backend", "apps/backend", "github.com/test/backend")
 	wb.AddChangeset("abc123", "backend", "minor", "Add new API endpoints")
 	wb.AddChangeset("def456", "backend", "patch", "Fix memory leak")
@@ -173,7 +172,7 @@ func TestSnapshotWorkflow(t *testing.T) {
 
 func TestSnapshotWithNoChangesets(t *testing.T) {
 	// Setup mock workspace with NO changesets
-	wb := testutil.NewWorkspaceBuilder("/test-workspace")
+	wb := workspace.NewWorkspaceBuilder("/test-workspace")
 	wb.AddProject("backend", "apps/backend", "github.com/test/backend")
 
 	fs := wb.Build()
@@ -196,7 +195,7 @@ func TestSnapshotWithNoChangesets(t *testing.T) {
 
 func TestSnapshotViaEach(t *testing.T) {
 	// Setup workspace with multiple projects
-	wb := testutil.NewWorkspaceBuilder("/test-workspace")
+	wb := workspace.NewWorkspaceBuilder("/test-workspace")
 	wb.AddProject("backend", "apps/backend", "github.com/test/backend")
 	wb.AddProject("www", "apps/www", "github.com/test/www")
 	wb.AddChangeset("abc123", "backend", "minor", "Add API")

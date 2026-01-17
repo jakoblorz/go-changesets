@@ -13,12 +13,11 @@ import (
 	"github.com/jakoblorz/go-changesets/internal/models"
 	"github.com/jakoblorz/go-changesets/internal/versioning"
 	"github.com/jakoblorz/go-changesets/internal/workspace"
-	"github.com/jakoblorz/go-changesets/test/testutil"
 )
 
 func TestFullWorkflow(t *testing.T) {
 	// Setup mock workspace
-	wb := testutil.NewWorkspaceBuilder("/test-workspace")
+	wb := workspace.NewWorkspaceBuilder("/test-workspace")
 	wb.AddProject("auth", "packages/auth", "github.com/test/auth")
 	wb.AddProject("api", "packages/api", "github.com/test/api")
 	wb.AddChangeset("abc123", "auth", "minor", "Add new login feature")
@@ -182,7 +181,7 @@ func TestFullWorkflow(t *testing.T) {
 
 func TestMultiProjectChangesets(t *testing.T) {
 	// Setup: Create workspace with two projects and changesets for both
-	wb := testutil.NewWorkspaceBuilder("/test-workspace")
+	wb := workspace.NewWorkspaceBuilder("/test-workspace")
 	wb.AddProject("auth", "packages/auth", "github.com/test/auth")
 	wb.AddProject("api", "packages/api", "github.com/test/api")
 
@@ -290,7 +289,7 @@ func TestVersionBumping(t *testing.T) {
 
 func TestVersionPublishWithGitTags(t *testing.T) {
 	// Setup mock workspace
-	wb := testutil.NewWorkspaceBuilder("/test-workspace")
+	wb := workspace.NewWorkspaceBuilder("/test-workspace")
 	wb.AddProject("auth", "packages/auth", "github.com/test/auth")
 	wb.AddChangeset("abc123", "auth", "minor", "Add new feature")
 	wb.SetVersion("auth", "0.0.0")
@@ -409,7 +408,7 @@ func TestVersionPublishWithGitTags(t *testing.T) {
 	}
 
 	// Step 4: Add another changeset and version again
-	wb2 := testutil.NewWorkspaceBuilder("/test-workspace")
+	wb2 := workspace.NewWorkspaceBuilder("/test-workspace")
 	wb2.AddProject("auth", "packages/auth", "github.com/test/auth")
 	wb2.AddChangeset("def456", "auth", "patch", "Fix bug")
 	wb2.SetVersion("auth", "0.1.0") // Current version from previous release
