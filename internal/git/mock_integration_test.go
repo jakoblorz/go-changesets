@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	"github.com/jakoblorz/go-changesets/internal/git"
+	"github.com/stretchr/testify/require"
 )
 
 // TestComparison_BasicTagOperations compares mock and OS git for basic tag operations
@@ -213,11 +214,8 @@ func TestComparison_TagSorting(t *testing.T) {
 	osTags, _ := osClient.GetTagsWithPrefix("backend@v*")
 	mockTags, _ := mockClient.GetTagsWithPrefix("backend@v*")
 
-	if len(osTags) != len(mockTags) {
-		t.Fatalf("Tag count mismatch: OS=%d, Mock=%d", len(osTags), len(mockTags))
-	}
+	require.Lenf(t, osTags, len(mockTags), "Tag count mismatch: OS=%d, Mock=%d", len(osTags), len(mockTags))
 
-	// Verify same sort order
 	for i := 0; i < len(osTags); i++ {
 		if osTags[i] != mockTags[i] {
 			t.Errorf("Sort order[%d]: OS=%s, Mock=%s", i, osTags[i], mockTags[i])
@@ -492,8 +490,6 @@ func getCurrentCommit(t *testing.T, repoPath string) string {
 	cmd := exec.Command("git", "rev-parse", "HEAD")
 	cmd.Dir = repoPath
 	output, err := cmd.Output()
-	if err != nil {
-		t.Fatalf("Failed to get current commit: %v", err)
-	}
+	require.NoError(t, err, "Failed to get current commit")
 	return strings.TrimSpace(string(output))
 }

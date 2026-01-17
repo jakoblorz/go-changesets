@@ -299,47 +299,23 @@ func TestChangelog_FormatEntry_InProjectContext(t *testing.T) {
 
 	// Detect workspace
 	ws := workspace.New(fs)
-	if err := ws.Detect(); err != nil {
-		t.Fatalf("failed to detect workspace: %v", err)
-	}
+	require.NoError(t, ws.Detect())
 
-	// Read changesets
 	csManager := changeset.NewManager(fs, ws.ChangesetDir())
 	allChangesets, err := csManager.ReadAll()
-	if err != nil {
-		t.Fatalf("failed to read changesets: %v", err)
-	}
+	require.NoError(t, err)
+	require.Len(t, allChangesets, 3)
 
-	if len(allChangesets) != 3 {
-		t.Errorf("expected 3 changesets, got %d", len(allChangesets))
-	}
-
-	// Test auth project changelog preview
 	authChangesets := changeset.FilterByProject(allChangesets, "auth")
-	if len(authChangesets) != 2 {
-		t.Fatalf("expected 2 auth changesets, got %d", len(authChangesets))
-	}
-
 	cl := NewChangelog(fs)
 	authProject, _ := ws.GetProject("auth")
-	authPreview, err := cl.FormatEntry(authChangesets, "auth", authProject.RootPath)
-	if err != nil {
-		t.Fatalf("failed to format auth preview: %v", err)
-	}
+	preview, err := cl.FormatEntry(authChangesets, "auth", authProject.RootPath)
+	require.NoError(t, err)
 
-	// Verify auth preview contains both changes grouped by type
-	if !strings.Contains(authPreview, "### Minor Changes") {
-		t.Errorf("Expected '### Minor Changes' in auth preview")
-	}
-	if !strings.Contains(authPreview, "### Patch Changes") {
-		t.Errorf("Expected '### Patch Changes' in auth preview")
-	}
-	if !strings.Contains(authPreview, "Add OAuth2 authentication support") {
-		t.Errorf("Expected OAuth2 message in auth preview")
-	}
-	if !strings.Contains(authPreview, "Fix memory leak in session handler") {
-		t.Errorf("Expected memory leak fix in auth preview")
-	}
+	require.Contains(t, preview, "### Minor Changes")
+	require.Contains(t, preview, "### Patch Changes")
+	require.Contains(t, preview, "Add OAuth2 authentication support")
+	require.Contains(t, preview, "Fix memory leak in session handler")
 }
 
 func TestChangelog_FormatEntry_MultilineMessages(t *testing.T) {
@@ -408,16 +384,11 @@ func TestChangelog_FormatEntry_ContextIntegration(t *testing.T) {
 	fs := wb.Build()
 
 	ws := workspace.New(fs)
-	if err := ws.Detect(); err != nil {
-		t.Fatalf("failed to detect workspace: %v", err)
-	}
+	require.NoError(t, ws.Detect())
 
-	// Read changesets
 	csManager := changeset.NewManager(fs, ws.ChangesetDir())
 	allChangesets, err := csManager.ReadAll()
-	if err != nil {
-		t.Fatalf("failed to read changesets: %v", err)
-	}
+	require.NoError(t, err)
 
 	// Build context for auth project (simulating what each command does)
 	project := ws.Projects[0]
@@ -428,9 +399,7 @@ func TestChangelog_FormatEntry_ContextIntegration(t *testing.T) {
 	if len(projectChangesets) > 0 {
 		cl := NewChangelog(fs)
 		changelogPreview, err = cl.FormatEntry(projectChangesets, project.Name, project.RootPath)
-		if err != nil {
-			t.Fatalf("failed to format changelog preview: %v", err)
-		}
+		require.NoError(t, err)
 	}
 
 	// Create context
@@ -453,9 +422,7 @@ func TestChangelog_FormatEntry_ContextIntegration(t *testing.T) {
 
 	// Verify it can be marshaled to JSON
 	jsonData, err := json.Marshal(ctx)
-	if err != nil {
-		t.Fatalf("Failed to marshal context to JSON: %v", err)
-	}
+	require.NoError(t, err)
 
 	// Verify JSON contains changelogPreview field
 	jsonStr := string(jsonData)
@@ -465,9 +432,7 @@ func TestChangelog_FormatEntry_ContextIntegration(t *testing.T) {
 
 	// Unmarshal and verify
 	var ctxCopy models.ProjectContext
-	if err := json.Unmarshal(jsonData, &ctxCopy); err != nil {
-		t.Fatalf("Failed to unmarshal JSON: %v", err)
-	}
+	require.NoError(t, json.Unmarshal(jsonData, &ctxCopy))
 
 	if ctxCopy.ChangelogPreview != ctx.ChangelogPreview {
 		t.Error("ChangelogPreview not preserved through JSON round-trip")

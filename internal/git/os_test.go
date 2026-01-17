@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/jakoblorz/go-changesets/internal/git"
+	"github.com/stretchr/testify/require"
 )
 
 // setupTestRepo creates a temporary git repository for testing
@@ -47,18 +48,14 @@ func runGitCmd(t *testing.T, dir string, args ...string) {
 	cmd := exec.Command("git", args...)
 	cmd.Dir = dir
 	output, err := cmd.CombinedOutput()
-	if err != nil {
-		t.Fatalf("git %v failed: %v\nOutput: %s", args, err, output)
-	}
+	require.NoErrorf(t, err, "git %v failed\nOutput: %s", args, output)
 }
 
 // writeFile writes content to a file
 func writeFile(t *testing.T, dir, filename, content string) {
 	t.Helper()
 	path := filepath.Join(dir, filename)
-	if err := os.WriteFile(path, []byte(content), 0644); err != nil {
-		t.Fatalf("failed to write file %s: %v", path, err)
-	}
+	require.NoErrorf(t, os.WriteFile(path, []byte(content), 0644), "failed to write file %s", path)
 }
 
 // createCommit creates a new commit in the repo
@@ -102,50 +99,26 @@ func TestOSGit_BasicTagOperations(t *testing.T) {
 	os.Chdir(repoPath)
 	defer os.Chdir(originalDir)
 
-	// Create a tag
 	err := client.CreateTag("backend@v1.0.0", "Release 1.0.0")
-	if err != nil {
-		t.Fatalf("CreateTag failed: %v", err)
-	}
+	require.NoError(t, err)
 
-	// Verify tag exists
 	exists, err := client.TagExists("backend@v1.0.0")
-	if err != nil {
-		t.Fatalf("TagExists failed: %v", err)
-	}
-	if !exists {
-		t.Error("Expected tag to exist")
-	}
+	require.NoError(t, err)
+	require.True(t, exists)
 
-	// Verify non-existent tag
 	exists, err = client.TagExists("nonexistent@v1.0.0")
-	if err != nil {
-		t.Fatalf("TagExists failed: %v", err)
-	}
-	if exists {
-		t.Error("Expected tag not to exist")
-	}
+	require.NoError(t, err)
+	require.False(t, exists)
 
-	// Create second tag
 	err = client.CreateTag("backend@v1.1.0", "Release 1.1.0")
-	if err != nil {
-		t.Fatalf("CreateTag failed: %v", err)
-	}
+	require.NoError(t, err)
 
-	// Get latest tag
 	tag, err := client.GetLatestTag("backend")
-	if err != nil {
-		t.Fatalf("GetLatestTag failed: %v", err)
-	}
-	if tag != "backend@v1.1.0" {
-		t.Errorf("Expected backend@v1.1.0, got %s", tag)
-	}
+	require.NoError(t, err)
+	require.Equal(t, "backend@v1.1.0", tag)
 
-	// Try to create duplicate tag (should fail)
 	err = client.CreateTag("backend@v1.1.0", "Duplicate")
-	if err == nil {
-		t.Error("Expected error when creating duplicate tag")
-	}
+	require.Error(t, err)
 }
 
 // TestOSGit_WildcardPatternMatching tests GetTagsWithPrefix with wildcards
@@ -168,41 +141,17 @@ func TestOSGit_WildcardPatternMatching(t *testing.T) {
 	client.CreateTag("www@v2.0.0", "WWW 2.0.0")
 	client.CreateTag("api@v0.5.0", "API 0.5.0")
 
-	// Get all backend tags with wildcard
 	tags, err := client.GetTagsWithPrefix("backend@v*")
-	if err != nil {
-		t.Fatalf("GetTagsWithPrefix failed: %v", err)
-	}
+	require.NoError(t, err)
+	require.Equal(t, []string{"backend@v1.2.0", "backend@v1.1.0", "backend@v1.0.0"}, tags)
 
-	// Should get all backend tags, sorted by version (descending)
-	if len(tags) != 3 {
-		t.Errorf("Expected 3 backend tags, got %d: %v", len(tags), tags)
-	}
-
-	// Verify correct tags
-	expectedTags := []string{"backend@v1.2.0", "backend@v1.1.0", "backend@v1.0.0"}
-	for i, expected := range expectedTags {
-		if i >= len(tags) || tags[i] != expected {
-			t.Errorf("Expected tags[%d] = %s, got %v", i, expected, tags)
-			break
-		}
-	}
-
-	// Verify www tags not included
 	for _, tag := range tags {
-		if tag == "www@v2.0.0" {
-			t.Error("Expected www tag not to be included in backend results")
-		}
+		require.NotEqual(t, "www@v2.0.0", tag)
 	}
 
-	// Get www tags
 	wwwTags, err := client.GetTagsWithPrefix("www@v*")
-	if err != nil {
-		t.Fatalf("GetTagsWithPrefix failed: %v", err)
-	}
-	if len(wwwTags) != 1 || wwwTags[0] != "www@v2.0.0" {
-		t.Errorf("Expected [www@v2.0.0], got %v", wwwTags)
-	}
+	require.NoError(t, err)
+	require.Equal(t, []string{"www@v2.0.0"}, wwwTags)
 }
 
 // TestOSGit_ExtractRCNumber tests RC number extraction from tags
@@ -223,28 +172,21 @@ func TestOSGit_ExtractRCNumber(t *testing.T) {
 		{"backend@v1.2.0-rc1", 1, false},
 		{"backend@v1.2.0-rc5", 5, false},
 		{"backend@v1.2.0-rc123", 123, false},
-		{"backend@v1.2.0", -1, false},    // Not an RC tag
-		{"www@v2.0.0", -1, false},        // Not an RC tag
-		{"backend@v1.2.0-rc", -1, true},  // Invalid (no number)
-		{"backend@v1.2.0-rcX", -1, true}, // Invalid (not a number)
+		{"backend@v1.2.0", -1, false},
+		{"www@v2.0.0", -1, false},
+		{"backend@v1.2.0-rc", -1, true},
+		{"backend@v1.2.0-rcX", -1, true},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.tag, func(t *testing.T) {
 			result, err := client.ExtractRCNumber(tt.tag)
-
 			if tt.hasError {
-				if err == nil {
-					t.Errorf("Expected error for %s, got nil", tt.tag)
-				}
-			} else {
-				if err != nil {
-					t.Errorf("Unexpected error for %s: %v", tt.tag, err)
-				}
-				if result != tt.expected {
-					t.Errorf("Expected %d for %s, got %d", tt.expected, tt.tag, result)
-				}
+				require.Error(t, err, "expected error for %s", tt.tag)
+				return
 			}
+			require.NoError(t, err)
+			require.Equalf(t, tt.expected, result, "tag %s", tt.tag)
 		})
 	}
 }
@@ -291,51 +233,22 @@ func TestOSGit_TagAncestry_BranchDivergence(t *testing.T) {
 
 	// From canary: should only see v1.0.0 (not v1.1.0)
 	tags, err := client.GetTagsWithPrefix("backend@v*")
-	if err != nil {
-		t.Fatalf("GetTagsWithPrefix failed: %v", err)
-	}
+	require.NoError(t, err)
 
-	if len(tags) != 1 {
-		t.Errorf("Expected 1 tag from canary, got %d: %v", len(tags), tags)
-	}
+	require.Len(t, tags, 1)
+	require.Equal(t, "backend@v1.0.0", tags[0])
 
-	if len(tags) > 0 && tags[0] != "backend@v1.0.0" {
-		t.Errorf("Expected backend@v1.0.0 from canary, got %s", tags[0])
-	}
-
-	// Verify v1.1.0 is NOT in the list
 	for _, tag := range tags {
-		if tag == "backend@v1.1.0" {
-			t.Error("canary branch should NOT see backend@v1.1.0 (not an ancestor)")
-		}
+		require.NotEqual(t, "backend@v1.1.0", tag, "canary branch should not see v1.1.0")
 	}
 
-	// Switch back to main and verify it sees both tags
 	checkoutBranch(t, repoPath, "main")
 	tags, err = client.GetTagsWithPrefix("backend@v*")
-	if err != nil {
-		t.Fatalf("GetTagsWithPrefix failed: %v", err)
-	}
+	require.NoError(t, err)
 
-	if len(tags) != 2 {
-		t.Errorf("Expected 2 tags from main, got %d: %v", len(tags), tags)
-	}
-
-	// Both tags should be visible from main
-	foundV1_0 := false
-	foundV1_1 := false
-	for _, tag := range tags {
-		if tag == "backend@v1.0.0" {
-			foundV1_0 = true
-		}
-		if tag == "backend@v1.1.0" {
-			foundV1_1 = true
-		}
-	}
-
-	if !foundV1_0 || !foundV1_1 {
-		t.Errorf("main should see both tags, got: %v", tags)
-	}
+	require.Len(t, tags, 2)
+	require.Contains(t, tags, "backend@v1.0.0")
+	require.Contains(t, tags, "backend@v1.1.0")
 }
 
 // TestOSGit_RCTagFiltering tests that publish can filter out RC tags
@@ -357,33 +270,20 @@ func TestOSGit_RCTagFiltering(t *testing.T) {
 	client.CreateTag("backend@v1.2.0-rc2", "RC 2")
 	client.CreateTag("backend@v1.2.0", "Final Release")
 
-	// Get all tags
 	allTags, err := client.GetTagsWithPrefix("backend@v*")
-	if err != nil {
-		t.Fatalf("GetTagsWithPrefix failed: %v", err)
-	}
+	require.NoError(t, err)
 
-	if len(allTags) != 4 {
-		t.Errorf("Expected 4 total tags, got %d: %v", len(allTags), allTags)
-	}
+	require.Len(t, allTags, 4)
 
-	// Filter out RC tags (simulating what publish command does)
 	var nonRCTags []string
 	for _, tag := range allTags {
 		rcNum, _ := client.ExtractRCNumber(tag)
-		if rcNum < 0 { // Not an RC tag
+		if rcNum < 0 {
 			nonRCTags = append(nonRCTags, tag)
 		}
 	}
 
-	// Should only have the final release
-	if len(nonRCTags) != 1 {
-		t.Errorf("Expected 1 non-RC tag, got %d: %v", len(nonRCTags), nonRCTags)
-	}
-
-	if len(nonRCTags) > 0 && nonRCTags[0] != "backend@v1.2.0" {
-		t.Errorf("Expected backend@v1.2.0, got %s", nonRCTags[0])
-	}
+	require.Equal(t, []string{"backend@v1.2.0"}, nonRCTags)
 }
 
 // TestOSGit_MultipleRCIncrements tests creating multiple RC tags
@@ -404,11 +304,8 @@ func TestOSGit_MultipleRCIncrements(t *testing.T) {
 
 	// Get RC tags for v1.3.0
 	allTags, _ := client.GetTagsWithPrefix("backend@v1.3.0-rc*")
-	if len(allTags) != 1 {
-		t.Errorf("Expected 1 RC tag, got %d", len(allTags))
-	}
+	require.Len(t, allTags, 1)
 
-	// Find highest RC number (simulating snapshot command logic)
 	highestRC := -1
 	for _, tag := range allTags {
 		rcNum, _ := client.ExtractRCNumber(tag)
@@ -416,10 +313,7 @@ func TestOSGit_MultipleRCIncrements(t *testing.T) {
 			highestRC = rcNum
 		}
 	}
-
-	if highestRC != 0 {
-		t.Errorf("Expected highest RC to be 0, got %d", highestRC)
-	}
+	require.Equal(t, 0, highestRC)
 
 	// Create second RC (increment)
 	nextRC := highestRC + 1
@@ -427,11 +321,8 @@ func TestOSGit_MultipleRCIncrements(t *testing.T) {
 
 	// Verify we now have 2 RCs
 	allTags, _ = client.GetTagsWithPrefix("backend@v1.3.0-rc*")
-	if len(allTags) != 2 {
-		t.Errorf("Expected 2 RC tags, got %d: %v", len(allTags), allTags)
-	}
+	require.Len(t, allTags, 2)
 
-	// Find highest RC again
 	highestRC = -1
 	for _, tag := range allTags {
 		rcNum, _ := client.ExtractRCNumber(tag)
@@ -439,18 +330,12 @@ func TestOSGit_MultipleRCIncrements(t *testing.T) {
 			highestRC = rcNum
 		}
 	}
+	require.Equal(t, nextRC, highestRC)
 
-	if highestRC != nextRC {
-		t.Errorf("Expected highest RC to be %d, got %d", nextRC, highestRC)
-	}
-
-	// Create third RC
 	client.CreateTag("backend@v1.3.0-rc2", "Third RC")
 
 	allTags, _ = client.GetTagsWithPrefix("backend@v1.3.0-rc*")
-	if len(allTags) != 3 {
-		t.Errorf("Expected 3 RC tags, got %d", len(allTags))
-	}
+	require.Len(t, allTags, 3)
 }
 
 // TestOSGit_CanaryWorkflow_Complete tests the full canary workflow
@@ -483,78 +368,41 @@ func TestOSGit_CanaryWorkflow_Complete(t *testing.T) {
 
 	// Verify canary sees v1.0.0 and rc0
 	tags, _ := client.GetTagsWithPrefix("backend@v*")
-	if len(tags) != 2 {
-		t.Errorf("Canary should see 2 tags, got %d: %v", len(tags), tags)
-	}
+	require.Len(t, tags, 2)
 
-	// Step 5: More changes on canary, create second snapshot
 	createCommit(t, repoPath, "canary_fix")
 	client.CreateTag("backend@v1.1.0-rc1", "Second RC")
 
 	tags, _ = client.GetTagsWithPrefix("backend@v*")
-	if len(tags) != 3 {
-		t.Errorf("Canary should see 3 tags, got %d: %v", len(tags), tags)
-	}
+	require.Len(t, tags, 3)
 
-	// Step 6: Meanwhile, main continues
 	checkoutBranch(t, repoPath, "main")
 	createCommit(t, repoPath, "main_other_feature")
 	client.CreateTag("backend@v1.1.0", "Final release on main")
 
-	// Step 7: Canary doesn't see main's v1.1.0 yet
 	checkoutBranch(t, repoPath, "canary")
 	tags, _ = client.GetTagsWithPrefix("backend@v*")
-	foundFinalRelease := false
 	for _, tag := range tags {
-		if tag == "backend@v1.1.0" {
-			foundFinalRelease = true
-		}
-	}
-	if foundFinalRelease {
-		t.Error("Canary should NOT see main's v1.1.0 (not merged yet)")
+		require.NotEqual(t, "backend@v1.1.0", tag, "canary should not see final release yet")
 	}
 
-	// Step 8: Merge main into canary
 	mergeBranch(t, repoPath, "main")
 
-	// Step 9: Now canary sees all tags
 	tags, _ = client.GetTagsWithPrefix("backend@v*")
-	if len(tags) != 4 {
-		t.Errorf("After merge, canary should see 4 tags, got %d: %v", len(tags), tags)
-	}
-
-	// Verify all expected tags
+	require.Len(t, tags, 4)
 	expectedTags := map[string]bool{
 		"backend@v1.0.0":     false,
 		"backend@v1.1.0-rc0": false,
 		"backend@v1.1.0-rc1": false,
 		"backend@v1.1.0":     false,
 	}
-
 	for _, tag := range tags {
 		if _, exists := expectedTags[tag]; exists {
 			expectedTags[tag] = true
 		}
 	}
-
 	for tag, found := range expectedTags {
-		if !found {
-			t.Errorf("Expected to find tag %s after merge, but didn't", tag)
-		}
-	}
-
-	// Step 10: Test filtering logic (publish should ignore RCs)
-	var nonRCTags []string
-	for _, tag := range tags {
-		rcNum, _ := client.ExtractRCNumber(tag)
-		if rcNum < 0 {
-			nonRCTags = append(nonRCTags, tag)
-		}
-	}
-
-	// Should have v1.0.0 and v1.1.0
-	if len(nonRCTags) != 2 {
-		t.Errorf("Expected 2 non-RC tags, got %d: %v", len(nonRCTags), nonRCTags)
+		require.Truef(t, found, "expected tag %s after merge", tag)
 	}
 }
 
@@ -587,33 +435,14 @@ func TestOSGit_MergeMainIntoCanary(t *testing.T) {
 	// Canary before merge: should only see v1.0.0
 	checkoutBranch(t, repoPath, "canary")
 	tagsBefore, _ := client.GetTagsWithPrefix("backend@v*")
-	if len(tagsBefore) != 1 || tagsBefore[0] != "backend@v1.0.0" {
-		t.Errorf("Before merge, canary should see [backend@v1.0.0], got %v", tagsBefore)
-	}
+	require.Equal(t, []string{"backend@v1.0.0"}, tagsBefore)
 
-	// Merge main into canary
 	mergeBranch(t, repoPath, "main")
 
-	// Canary after merge: should see both v1.0.0 and v1.1.0
 	tagsAfter, _ := client.GetTagsWithPrefix("backend@v*")
-	if len(tagsAfter) != 2 {
-		t.Errorf("After merge, canary should see 2 tags, got %d: %v", len(tagsAfter), tagsAfter)
-	}
-
-	found_v1_0 := false
-	found_v1_1 := false
-	for _, tag := range tagsAfter {
-		if tag == "backend@v1.0.0" {
-			found_v1_0 = true
-		}
-		if tag == "backend@v1.1.0" {
-			found_v1_1 = true
-		}
-	}
-
-	if !found_v1_0 || !found_v1_1 {
-		t.Errorf("After merge, expected to find both v1.0.0 and v1.1.0, got: %v", tagsAfter)
-	}
+	require.Len(t, tagsAfter, 2)
+	require.Contains(t, tagsAfter, "backend@v1.0.0")
+	require.Contains(t, tagsAfter, "backend@v1.1.0")
 }
 
 // TestOSGit_TagAnnotations tests that tag messages are stored correctly
@@ -631,18 +460,9 @@ func TestOSGit_TagAnnotations(t *testing.T) {
 
 	// Create annotated tag with message
 	message := "Release 1.0.0\n\nThis is a test release with\nmultiple lines"
-	err := client.CreateTag("backend@v1.0.0", message)
-	if err != nil {
-		t.Fatalf("CreateTag failed: %v", err)
-	}
+	require.NoError(t, client.CreateTag("backend@v1.0.0", message))
 
-	// Retrieve annotation
 	annotation, err := client.GetTagAnnotation("backend@v1.0.0")
-	if err != nil {
-		t.Fatalf("GetTagAnnotation failed: %v", err)
-	}
-
-	if annotation != message {
-		t.Errorf("Expected message %q, got %q", message, annotation)
-	}
+	require.NoError(t, err)
+	require.Equal(t, message, annotation)
 }
