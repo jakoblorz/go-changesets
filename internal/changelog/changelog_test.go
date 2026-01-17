@@ -13,7 +13,6 @@ import (
 	"github.com/jakoblorz/go-changesets/internal/filesystem"
 	"github.com/jakoblorz/go-changesets/internal/models"
 	"github.com/jakoblorz/go-changesets/internal/workspace"
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -298,7 +297,7 @@ func TestChangelog_CustomTemplateOverride(t *testing.T) {
 	snaps.MatchSnapshot(t, output)
 }
 
-func TestChangelog_Format_Append_withPRDetails(t *testing.T) {
+func TestChangelog_FormatEntry_withPRDetails(t *testing.T) {
 	changesets := []*models.Changeset{
 		{
 			ID:      "minor-with-pr",
@@ -328,51 +327,71 @@ func TestChangelog_Format_Append_withPRDetails(t *testing.T) {
 		},
 	}
 
-	t.Run("FormatEntry", func(t *testing.T) {
-		fs := filesystem.NewMockFileSystem()
-		changelog := NewChangelog(fs)
+	fs := filesystem.NewMockFileSystem()
+	changelog := NewChangelog(fs)
 
-		preview, err := changelog.FormatEntry(changesets, "auth", "/workspace")
-		require.NoError(t, err, "FormatEntry failed: %v", err)
-		snaps.MatchSnapshot(t, preview)
-	})
+	preview, err := changelog.FormatEntry(changesets, "auth", "/workspace")
+	require.NoError(t, err)
+	snaps.MatchSnapshot(t, preview)
 
-	t.Run("Append", func(t *testing.T) {
-		fs := filesystem.NewMockFileSystem()
-		changelog := NewChangelog(fs)
+}
 
-		rootEntry := &Entry{
-			Version:    &models.Version{Major: 2, Minor: 0, Patch: 0},
-			Date:       time.Date(2024, 12, 6, 0, 0, 0, 0, time.UTC),
-			Changesets: changesets,
-		}
-		err := changelog.Append(".", "", rootEntry)
-		assert.NoError(t, err, "Append should not return an error")
+func TestChangelog_Append_withPRDetails(t *testing.T) {
+	changesets := []*models.Changeset{
+		{
+			ID:      "minor-with-pr",
+			Message: "Add OAuth2 support\n\nIncludes Google + GitHub providers",
+			Projects: map[string]models.BumpType{
+				"auth": models.BumpMinor,
+			},
+			PR: &models.PullRequest{
+				Number: 123,
+				URL:    "https://github.com/org/repo/pull/123",
+				Author: "alice",
+			},
+		},
+		{
+			ID:      "patch",
+			Message: "Fix memory leak",
+			Projects: map[string]models.BumpType{
+				"auth": models.BumpPatch,
+			},
+		},
+		{
+			ID:      "major",
+			Message: "Breaking API change",
+			Projects: map[string]models.BumpType{
+				"auth": models.BumpMajor,
+			},
+		},
+	}
 
-		content, err := fs.ReadFile("./CHANGELOG.md")
-		assert.NoError(t, err, "ReadFile should not return an error")
+	appendCases := []struct {
+		name        string
+		projectName string
+	}{
+		{name: "Append", projectName: ""},
+		{name: "AppendWithProject", projectName: "auth"},
+	}
 
-		snaps.MatchSnapshot(t, string(content))
-	})
+	for _, tc := range appendCases {
+		t.Run(tc.name, func(t *testing.T) {
+			fs := filesystem.NewMockFileSystem()
+			changelog := NewChangelog(fs)
 
-	t.Run("AppendWithProject", func(t *testing.T) {
-		fs := filesystem.NewMockFileSystem()
-		changelog := NewChangelog(fs)
+			rootEntry := &Entry{
+				Version:    &models.Version{Major: 2, Minor: 0, Patch: 0},
+				Date:       time.Date(2024, 12, 6, 0, 0, 0, 0, time.UTC),
+				Changesets: changesets,
+			}
+			require.NoError(t, changelog.Append(".", tc.projectName, rootEntry))
 
-		rootEntry := &Entry{
-			Version:    &models.Version{Major: 2, Minor: 0, Patch: 0},
-			Date:       time.Date(2024, 12, 6, 0, 0, 0, 0, time.UTC),
-			Changesets: changesets,
-		}
-		err := changelog.Append(".", "auth", rootEntry)
-		assert.NoError(t, err, "Append should not return an error")
+			content, err := fs.ReadFile("./CHANGELOG.md")
+			require.NoError(t, err)
 
-		content, err := fs.ReadFile("./CHANGELOG.md")
-		assert.NoError(t, err, "ReadFile should not return an error")
-
-		snaps.MatchSnapshot(t, string(content))
-	})
-
+			snaps.MatchSnapshot(t, string(content))
+		})
+	}
 }
 
 func TestChangelog_Append(t *testing.T) {
