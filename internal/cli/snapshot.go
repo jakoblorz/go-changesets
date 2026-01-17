@@ -3,7 +3,6 @@ package cli
 import (
 	"context"
 	"fmt"
-	"os"
 	"strings"
 
 	"github.com/jakoblorz/go-changesets/internal/changeset"
@@ -60,12 +59,6 @@ func (c *SnapshotCommand) Run(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	if resolved.ViaEach {
-		fmt.Printf("📸 Creating snapshot for %s (via changeset each)\n\n", resolved.Name)
-	} else {
-		fmt.Printf("📸 Creating snapshot for project: %s\n\n", resolved.Name)
-	}
-
 	if owner == "" {
 		return fmt.Errorf("--owner flag required")
 	}
@@ -74,14 +67,13 @@ func (c *SnapshotCommand) Run(cmd *cobra.Command, args []string) error {
 	}
 
 	if c.ghClient == nil {
-		token := os.Getenv("GH_TOKEN")
-		if token == "" {
-			token = os.Getenv("GITHUB_TOKEN")
-		}
-		if token == "" {
-			return fmt.Errorf("GITHUB_TOKEN or GH_TOKEN environment variable required for snapshot")
-		}
-		c.ghClient = github.NewClient(token)
+		return fmt.Errorf("Authenticated GitHub client required to create a snapshot: %w", github.ErrGitHubTokenNotFound)
+	}
+
+	if resolved.ViaEach {
+		fmt.Printf("📸 Creating snapshot for %s (via changeset each)\n\n", resolved.Name)
+	} else {
+		fmt.Printf("📸 Creating snapshot for project: %s\n\n", resolved.Name)
 	}
 
 	csManager := changeset.NewManager(c.fs, resolved.Workspace.ChangesetDir())

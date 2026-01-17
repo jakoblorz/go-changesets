@@ -3,6 +3,7 @@ package github
 import (
 	"context"
 	"fmt"
+	"os"
 
 	"github.com/google/go-github/v57/github"
 	"golang.org/x/oauth2"
@@ -22,6 +23,23 @@ func NewClient(token string) *Client {
 	return &Client{
 		client: github.NewClient(tc),
 	}
+}
+
+var (
+	ErrGitHubTokenNotFound = fmt.Errorf("GITHUB_TOKEN or GH_TOKEN environment variable not found")
+)
+
+// NewClientFromEnv creates a GitHub client using the token from environment variables
+func NewClientFromEnv() (*Client, error) {
+	token := os.Getenv("GH_TOKEN")
+	if token == "" {
+		token = os.Getenv("GITHUB_TOKEN")
+	}
+	if token == "" {
+		return nil, ErrGitHubTokenNotFound
+	}
+
+	return NewClient(token), nil
 }
 
 // NewClientWithoutAuth creates a GitHub client without authentication (for public operations)

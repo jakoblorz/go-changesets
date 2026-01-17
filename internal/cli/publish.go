@@ -3,7 +3,6 @@ package cli
 import (
 	"context"
 	"fmt"
-	"os"
 	"strings"
 
 	"github.com/jakoblorz/go-changesets/internal/filesystem"
@@ -73,14 +72,7 @@ func (c *PublishCommand) Run(cmd *cobra.Command, args []string) error {
 	}
 
 	if c.ghClient == nil {
-		token := os.Getenv("GH_TOKEN")
-		if token == "" {
-			token = os.Getenv("GITHUB_TOKEN")
-		}
-		if token == "" {
-			return fmt.Errorf("GITHUB_TOKEN or GH_TOKEN environment variable required for publishing")
-		}
-		c.ghClient = github.NewClient(token)
+		return fmt.Errorf("Authenticated GitHub client required for publishing: %w", github.ErrGitHubTokenNotFound)
 	}
 
 	versionStore := versioning.NewVersionStore(c.fs, resolved.Project.Type)
