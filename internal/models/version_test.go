@@ -2,6 +2,8 @@ package models
 
 import (
 	"testing"
+
+	"github.com/stretchr/testify/require"
 )
 
 func TestParseVersion_WithPrerelease(t *testing.T) {
@@ -18,16 +20,8 @@ func TestParseVersion_WithPrerelease(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.input, func(t *testing.T) {
 			result, err := ParseVersion(tt.input)
-			if err != nil {
-				t.Fatalf("ParseVersion(%q) error: %v", tt.input, err)
-			}
-
-			if result.Major != tt.expected.Major ||
-				result.Minor != tt.expected.Minor ||
-				result.Patch != tt.expected.Patch ||
-				result.Prerelease != tt.expected.Prerelease {
-				t.Errorf("ParseVersion(%q) = %+v, want %+v", tt.input, result, tt.expected)
-			}
+			require.NoError(t, err)
+			require.Equal(t, tt.expected, result)
 		})
 	}
 }
@@ -45,16 +39,8 @@ func TestParseVersion_WithoutPrerelease(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.input, func(t *testing.T) {
 			result, err := ParseVersion(tt.input)
-			if err != nil {
-				t.Fatalf("ParseVersion(%q) error: %v", tt.input, err)
-			}
-
-			if result.Major != tt.expected.Major ||
-				result.Minor != tt.expected.Minor ||
-				result.Patch != tt.expected.Patch ||
-				result.Prerelease != tt.expected.Prerelease {
-				t.Errorf("ParseVersion(%q) = %+v, want %+v", tt.input, result, tt.expected)
-			}
+			require.NoError(t, err)
+			require.Equal(t, tt.expected, result)
 		})
 	}
 }
@@ -72,10 +58,7 @@ func TestVersion_String_WithPrerelease(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.expected, func(t *testing.T) {
-			result := tt.version.String()
-			if result != tt.expected {
-				t.Errorf("Version.String() = %q, want %q", result, tt.expected)
-			}
+			require.Equal(t, tt.expected, tt.version.String())
 		})
 	}
 }
@@ -93,10 +76,7 @@ func TestVersion_Tag_WithPrerelease(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.expected, func(t *testing.T) {
-			result := tt.version.Tag()
-			if result != tt.expected {
-				t.Errorf("Version.Tag() = %q, want %q", result, tt.expected)
-			}
+			require.Equal(t, tt.expected, tt.version.Tag())
 		})
 	}
 }
@@ -128,11 +108,7 @@ func TestVersion_Compare_PrereleaseOrdering(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := tt.v1.Compare(tt.v2)
-			if result != tt.expected {
-				t.Errorf("%s.Compare(%s) = %d, want %d",
-					tt.v1.String(), tt.v2.String(), result, tt.expected)
-			}
+			require.Equal(t, tt.expected, tt.v1.Compare(tt.v2), "%s vs %s", tt.v1.String(), tt.v2.String())
 		})
 	}
 }
@@ -141,20 +117,9 @@ func TestVersion_WithPrerelease(t *testing.T) {
 	original := &Version{1, 2, 3, ""}
 	result := original.WithPrerelease("rc0")
 
-	// Check new version has prerelease
-	if result.Prerelease != "rc0" {
-		t.Errorf("WithPrerelease() prerelease = %q, want %q", result.Prerelease, "rc0")
-	}
-
-	// Check original is unchanged
-	if original.Prerelease != "" {
-		t.Errorf("WithPrerelease() modified original version")
-	}
-
-	// Check other fields copied
-	if result.Major != 1 || result.Minor != 2 || result.Patch != 3 {
-		t.Errorf("WithPrerelease() did not copy version numbers correctly")
-	}
+	require.Equal(t, "rc0", result.Prerelease)
+	require.Equal(t, "", original.Prerelease)
+	require.Equal(t, &Version{1, 2, 3, "rc0"}, result)
 }
 
 func TestVersion_StripPrerelease(t *testing.T) {
@@ -162,19 +127,9 @@ func TestVersion_StripPrerelease(t *testing.T) {
 	result := original.StripPrerelease()
 
 	// Check new version has no prerelease
-	if result.Prerelease != "" {
-		t.Errorf("StripPrerelease() prerelease = %q, want empty", result.Prerelease)
-	}
-
-	// Check original is unchanged
-	if original.Prerelease != "rc0" {
-		t.Errorf("StripPrerelease() modified original version")
-	}
-
-	// Check other fields copied
-	if result.Major != 1 || result.Minor != 2 || result.Patch != 3 {
-		t.Errorf("StripPrerelease() did not copy version numbers correctly")
-	}
+	require.Equal(t, "", result.Prerelease)
+	require.Equal(t, "rc0", original.Prerelease)
+	require.Equal(t, &Version{1, 2, 3, ""}, result)
 }
 
 func TestVersion_IsPrerelease(t *testing.T) {
@@ -190,10 +145,7 @@ func TestVersion_IsPrerelease(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := tt.version.IsPrerelease()
-			if result != tt.expected {
-				t.Errorf("IsPrerelease() = %v, want %v", result, tt.expected)
-			}
+			require.Equal(t, tt.expected, tt.version.IsPrerelease())
 		})
 	}
 }
@@ -214,18 +166,8 @@ func TestVersion_Bump_WithPrerelease(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(string(tt.bump), func(t *testing.T) {
 			result := original.Bump(tt.bump)
-
-			if result.Major != tt.expected.Major ||
-				result.Minor != tt.expected.Minor ||
-				result.Patch != tt.expected.Patch ||
-				result.Prerelease != tt.expected.Prerelease {
-				t.Errorf("Bump(%s) = %+v, want %+v", tt.bump, result, tt.expected)
-			}
-
-			// Original should be unchanged
-			if original.Prerelease != "rc0" {
-				t.Errorf("Bump() modified original version")
-			}
+			require.Equal(t, tt.expected, result)
+			require.Equal(t, "rc0", original.Prerelease)
 		})
 	}
 }

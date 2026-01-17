@@ -2,6 +2,8 @@ package models
 
 import (
 	"testing"
+
+	"github.com/stretchr/testify/require"
 )
 
 func TestChangeset_AffectsProject(t *testing.T) {
@@ -14,17 +16,9 @@ func TestChangeset_AffectsProject(t *testing.T) {
 		},
 	}
 
-	if !cs.AffectsProject("project-a") {
-		t.Error("AffectsProject(project-a) = false, want true")
-	}
-
-	if !cs.AffectsProject("project-b") {
-		t.Error("AffectsProject(project-b) = false, want true")
-	}
-
-	if cs.AffectsProject("project-c") {
-		t.Error("AffectsProject(project-c) = true, want false")
-	}
+	require.True(t, cs.AffectsProject("project-a"))
+	require.True(t, cs.AffectsProject("project-b"))
+	require.False(t, cs.AffectsProject("project-c"))
 }
 
 func TestChangeset_GetBumpForProject(t *testing.T) {
@@ -38,23 +32,13 @@ func TestChangeset_GetBumpForProject(t *testing.T) {
 	}
 
 	bump, exists := cs.GetBumpForProject("project-a")
-	if !exists {
-		t.Error("GetBumpForProject(project-a) exists = false, want true")
-	}
-	if bump != BumpMajor {
-		t.Errorf("GetBumpForProject(project-a) = %s, want %s", bump, BumpMajor)
-	}
+	require.True(t, exists)
+	require.Equal(t, BumpMajor, bump)
 
 	bump, exists = cs.GetBumpForProject("project-b")
-	if !exists {
-		t.Error("GetBumpForProject(project-b) exists = false, want true")
-	}
-	if bump != BumpMinor {
-		t.Errorf("GetBumpForProject(project-b) = %s, want %s", bump, BumpMinor)
-	}
+	require.True(t, exists)
+	require.Equal(t, BumpMinor, bump)
 
 	_, exists = cs.GetBumpForProject("nonexistent")
-	if exists {
-		t.Error("GetBumpForProject(nonexistent) exists = true, want false")
-	}
+	require.False(t, exists)
 }
