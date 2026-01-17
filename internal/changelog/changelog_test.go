@@ -335,32 +335,20 @@ This change includes:
 	fs := wb.Build()
 
 	ws := workspace.New(fs)
-	if err := ws.Detect(); err != nil {
-		t.Fatalf("failed to detect workspace: %v", err)
-	}
+	require.NoError(t, ws.Detect())
 
 	csManager := changeset.NewManager(fs, ws.ChangesetDir())
 	allChangesets, err := csManager.ReadAll()
-	if err != nil {
-		t.Fatalf("failed to read changesets: %v", err)
-	}
+	require.NoError(t, err)
 
 	authChangesets := changeset.FilterByProject(allChangesets, "auth")
 	cl := NewChangelog(fs)
 	authProject, _ := ws.GetProject("auth")
 	preview, err := cl.FormatEntry(authChangesets, "auth", authProject.RootPath)
-	if err != nil {
-		t.Fatalf("failed to format preview: %v", err)
-	}
+	require.NoError(t, err)
 
-	// Verify multiline formatting
-	if !strings.Contains(preview, "Add comprehensive OAuth2 support") {
-		t.Errorf("Expected first line in preview")
-	}
-	if !strings.Contains(preview, "Google OAuth2 provider") {
-		t.Errorf("Expected detail line in preview")
-	}
-	// Lines should be indented
+	require.True(t, strings.Contains(preview, "Add comprehensive OAuth2 support"), "Expected first line in preview")
+	require.True(t, strings.Contains(preview, "Google OAuth2 provider"), "Expected detail line in preview")
 	lines := strings.Split(preview, "\n")
 	foundIndented := false
 	for _, line := range lines {
@@ -369,9 +357,7 @@ This change includes:
 			break
 		}
 	}
-	if !foundIndented {
-		t.Errorf("Expected indented lines for multiline message")
-	}
+	require.True(t, foundIndented, "Expected indented lines for multiline message")
 }
 
 func TestChangelog_FormatEntry_ContextIntegration(t *testing.T) {
@@ -412,13 +398,9 @@ func TestChangelog_FormatEntry_ContextIntegration(t *testing.T) {
 	}
 
 	// Verify context has changelog preview
-	if ctx.ChangelogPreview == "" {
-		t.Error("Expected ChangelogPreview to be populated in context")
-	}
+	require.NotEmpty(t, ctx.ChangelogPreview, "Expected ChangelogPreview to be populated in context")
 
-	if !strings.Contains(ctx.ChangelogPreview, "Add new feature") {
-		t.Errorf("Expected changeset message in preview, got: %s", ctx.ChangelogPreview)
-	}
+	require.Contains(t, ctx.ChangelogPreview, "Add new feature")
 
 	// Verify it can be marshaled to JSON
 	jsonData, err := json.Marshal(ctx)
@@ -426,17 +408,13 @@ func TestChangelog_FormatEntry_ContextIntegration(t *testing.T) {
 
 	// Verify JSON contains changelogPreview field
 	jsonStr := string(jsonData)
-	if !strings.Contains(jsonStr, "changelogPreview") {
-		t.Error("Expected 'changelogPreview' field in JSON")
-	}
+	require.Contains(t, jsonStr, "changelogPreview")
 
 	// Unmarshal and verify
 	var ctxCopy models.ProjectContext
 	require.NoError(t, json.Unmarshal(jsonData, &ctxCopy))
 
-	if ctxCopy.ChangelogPreview != ctx.ChangelogPreview {
-		t.Error("ChangelogPreview not preserved through JSON round-trip")
-	}
+	require.Equal(t, ctx.ChangelogPreview, ctxCopy.ChangelogPreview, "ChangelogPreview not preserved through JSON round-trip")
 }
 
 func TestChangelog_FormatEntry_OrderByBumpType(t *testing.T) {
@@ -452,40 +430,30 @@ func TestChangelog_FormatEntry_OrderByBumpType(t *testing.T) {
 
 	fs := wb.Build()
 	ws := workspace.New(fs)
-	if err := ws.Detect(); err != nil {
-		t.Fatalf("failed to detect workspace: %v", err)
-	}
+	require.NoError(t, ws.Detect())
 
 	csManager := changeset.NewManager(fs, ws.ChangesetDir())
 	allChangesets, err := csManager.ReadAll()
-	if err != nil {
-		t.Fatalf("failed to read changesets: %v", err)
-	}
+	require.NoError(t, err)
 
 	authChangesets := changeset.FilterByProject(allChangesets, "auth")
 	cl := NewChangelog(fs)
 	authProject, _ := ws.GetProject("auth")
 	preview, err := cl.FormatEntry(authChangesets, "auth", authProject.RootPath)
-	if err != nil {
-		t.Fatalf("failed to format preview: %v", err)
-	}
+	require.NoError(t, err)
 
 	// Find positions of each section
 	majorIdx := strings.Index(preview, "### Major Changes")
 	minorIdx := strings.Index(preview, "### Minor Changes")
 	patchIdx := strings.Index(preview, "### Patch Changes")
 
-	if majorIdx == -1 || minorIdx == -1 || patchIdx == -1 {
-		t.Fatalf("Missing sections in preview:\n%s", preview)
-	}
+	require.NotEqual(t, -1, majorIdx, "Missing Major section in preview:\n%s", preview)
+	require.NotEqual(t, -1, minorIdx, "Missing Minor section in preview:\n%s", preview)
+	require.NotEqual(t, -1, patchIdx, "Missing Patch section in preview:\n%s", preview)
 
 	// Verify order: Major before Minor before Patch
-	if majorIdx > minorIdx {
-		t.Error("Major Changes should come before Minor Changes")
-	}
-	if minorIdx > patchIdx {
-		t.Error("Minor Changes should come before Patch Changes")
-	}
+	require.Less(t, majorIdx, minorIdx, "Major Changes should come before Minor Changes")
+	require.Less(t, minorIdx, patchIdx, "Minor Changes should come before Patch Changes")
 }
 
 func TestChangelog_CustomTemplateOverride(t *testing.T) {
@@ -544,9 +512,7 @@ func TestChangelog_Format_Append_withPRDetails(t *testing.T) {
 		changelog := NewChangelog(fs)
 
 		preview, err := changelog.FormatEntry(changesets, "auth", "/workspace")
-		if err != nil {
-			t.Fatalf("FormatEntry failed: %v", err)
-		}
+		require.NoError(t, err, "FormatEntry failed: %v", err)
 		snaps.MatchSnapshot(t, preview)
 	})
 

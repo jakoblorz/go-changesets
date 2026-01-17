@@ -13,6 +13,7 @@ import (
 	"github.com/jakoblorz/go-changesets/internal/models"
 	"github.com/jakoblorz/go-changesets/internal/versioning"
 	"github.com/jakoblorz/go-changesets/internal/workspace"
+	"github.com/stretchr/testify/require"
 )
 
 func TestFullWorkflow(t *testing.T) {
@@ -31,36 +32,24 @@ func TestFullWorkflow(t *testing.T) {
 
 	// Test: Workspace detection
 	ws := workspace.New(fs)
-	if err := ws.Detect(); err != nil {
-		t.Fatalf("failed to detect workspace: %v", err)
-	}
+	require.NoError(t, ws.Detect())
 
-	if len(ws.Projects) != 2 {
-		t.Errorf("expected 2 projects, got %d", len(ws.Projects))
-	}
+	require.Len(t, ws.Projects, 2)
 
 	// Test: Read changesets
 	csManager := changeset.NewManager(fs, ws.ChangesetDir())
 	changesets, err := csManager.ReadAll()
-	if err != nil {
-		t.Fatalf("failed to read changesets: %v", err)
-	}
+	require.NoError(t, err)
 
-	if len(changesets) != 2 {
-		t.Errorf("expected 2 changesets, got %d", len(changesets))
-	}
+	require.Len(t, changesets, 2)
 
 	// Test: Filter changesets by project
 	authChangesets := changeset.FilterByProject(changesets, "auth")
-	if len(authChangesets) != 2 {
-		t.Errorf("expected 2 changesets for auth, got %d", len(authChangesets))
-	}
+	require.Len(t, authChangesets, 2)
 
 	// Test: Get highest bump
 	highestBump := csManager.GetHighestBump(authChangesets, "auth")
-	if highestBump != models.BumpMinor {
-		t.Errorf("expected minor bump, got %s", highestBump)
-	}
+	require.Equal(t, models.BumpMinor, highestBump)
 
 	// Test: Version management
 	authProject, _ := ws.GetProject("auth")
@@ -68,34 +57,22 @@ func TestFullWorkflow(t *testing.T) {
 
 	// Read initial version (should default to 0.0.0)
 	currentVersion, err := versionFile.Read(authProject.RootPath)
-	if err != nil {
-		t.Fatalf("failed to read version: %v", err)
-	}
+	require.NoError(t, err)
 
-	if currentVersion.String() != "0.0.0" {
-		t.Errorf("expected version 0.0.0, got %s", currentVersion.String())
-	}
+	require.Equal(t, "0.0.0", currentVersion.String())
 
 	// Bump version
 	newVersion := currentVersion.Bump(highestBump)
-	if newVersion.String() != "0.1.0" {
-		t.Errorf("expected version 0.1.0, got %s", newVersion.String())
-	}
+	require.Equal(t, "0.1.0", newVersion.String())
 
 	// Write new version
-	if err := versionFile.Write(authProject.RootPath, newVersion); err != nil {
-		t.Fatalf("failed to write version: %v", err)
-	}
+	require.NoError(t, versionFile.Write(authProject.RootPath, newVersion))
 
 	// Verify version was written
 	readVersion, err := versionFile.Read(authProject.RootPath)
-	if err != nil {
-		t.Fatalf("failed to read version after write: %v", err)
-	}
+	require.NoError(t, err)
 
-	if readVersion.String() != "0.1.0" {
-		t.Errorf("expected version 0.1.0 after write, got %s", readVersion.String())
-	}
+	require.Equal(t, "0.1.0", readVersion.String())
 
 	// Test: Changelog generation
 	cl := changelog.NewChangelog(fs)
@@ -105,41 +82,27 @@ func TestFullWorkflow(t *testing.T) {
 		Changesets: authChangesets,
 	}
 
-	if err := cl.Append(authProject.RootPath, "auth", entry); err != nil {
-		t.Fatalf("failed to append to changelog: %v", err)
-	}
+	require.NoError(t, cl.Append(authProject.RootPath, "auth", entry))
 
 	// Verify changelog was created
 	changelogPath := authProject.RootPath + "/CHANGELOG.md"
 	changelogData, err := fs.ReadFile(changelogPath)
-	if err != nil {
-		t.Fatalf("failed to read changelog: %v", err)
-	}
+	require.NoError(t, err)
 
 	changelogContent := string(changelogData)
-	if !strings.Contains(changelogContent, "0.1.0") {
-		t.Error("changelog missing version 0.1.0")
-	}
-	if !strings.Contains(changelogContent, "Add new login feature") {
-		t.Error("changelog missing expected entry")
-	}
+	require.Contains(t, changelogContent, "0.1.0")
+	require.Contains(t, changelogContent, "Add new login feature")
 
 	// Test: Delete changesets
 	for _, cs := range authChangesets {
-		if err := csManager.Delete(cs); err != nil {
-			t.Fatalf("failed to delete changeset: %v", err)
-		}
+		require.NoError(t, csManager.Delete(cs))
 	}
 
 	// Verify changesets were deleted
 	remainingChangesets, err := csManager.ReadAll()
-	if err != nil {
-		t.Fatalf("failed to read changesets after deletion: %v", err)
-	}
+	require.NoError(t, err)
 
-	if len(remainingChangesets) != 0 {
-		t.Errorf("expected 0 changesets after deletion, got %d", len(remainingChangesets))
-	}
+	require.Len(t, remainingChangesets, 0)
 
 	// Test: GitHub release creation
 	ctx := context.Background()
@@ -150,23 +113,15 @@ func TestFullWorkflow(t *testing.T) {
 		Name:    tag,
 		Body:    "Release notes",
 	})
-	if err != nil {
-		t.Fatalf("failed to create release: %v", err)
-	}
+	require.NoError(t, err)
 
-	if release.TagName != tag {
-		t.Errorf("expected tag %s, got %s", tag, release.TagName)
-	}
+	require.Equal(t, tag, release.TagName)
 
 	// Test: Check if release exists
 	existingRelease, err := ghMock.GetReleaseByTag(ctx, "test", "monorepo", tag)
-	if err != nil {
-		t.Fatalf("failed to get release by tag: %v", err)
-	}
+	require.NoError(t, err)
 
-	if existingRelease.TagName != tag {
-		t.Errorf("expected tag %s, got %s", tag, existingRelease.TagName)
-	}
+	require.Equal(t, tag, existingRelease.TagName)
 
 	// Test: Duplicate release should fail
 	_, err = ghMock.CreateRelease(ctx, "test", "monorepo", &github.CreateReleaseRequest{
@@ -174,9 +129,7 @@ func TestFullWorkflow(t *testing.T) {
 		Name:    tag,
 		Body:    "Duplicate",
 	})
-	if err == nil {
-		t.Error("expected error when creating duplicate release, got nil")
-	}
+	require.Error(t, err)
 }
 
 func TestMultiProjectChangesets(t *testing.T) {
@@ -194,29 +147,21 @@ func TestMultiProjectChangesets(t *testing.T) {
 
 	// Setup workspace
 	ws := workspace.New(fs)
-	if err := ws.Detect(); err != nil {
-		t.Fatalf("failed to detect workspace: %v", err)
-	}
+	require.NoError(t, ws.Detect())
 
 	csManager := changeset.NewManager(fs, ws.ChangesetDir())
 
 	// Read all changesets
 	allChangesets, err := csManager.ReadAll()
-	if err != nil {
-		t.Fatalf("failed to read changesets: %v", err)
-	}
+	require.NoError(t, err)
 
-	if len(allChangesets) != 2 {
-		t.Fatalf("expected 2 changesets, got %d", len(allChangesets))
-	}
+	require.Len(t, allChangesets, 2)
 
 	// Version the 'auth' project
 	authProject, _ := ws.GetProject("auth")
 	authChangesets := changeset.FilterByProject(allChangesets, "auth")
 
-	if len(authChangesets) != 1 {
-		t.Errorf("expected 1 changeset for auth, got %d", len(authChangesets))
-	}
+	require.Len(t, authChangesets, 1)
 
 	// Apply version to auth
 	versionFile := versioning.NewVersionFile(fs)
@@ -226,35 +171,23 @@ func TestMultiProjectChangesets(t *testing.T) {
 
 	// Delete auth changesets
 	for _, cs := range authChangesets {
-		if err := csManager.Delete(cs); err != nil {
-			t.Fatalf("failed to delete changeset: %v", err)
-		}
+		require.NoError(t, csManager.Delete(cs))
 	}
 
 	// Verify: Auth changeset is deleted
 	remainingChangesets, err := csManager.ReadAll()
-	if err != nil {
-		t.Fatalf("failed to read changesets after deletion: %v", err)
-	}
+	require.NoError(t, err)
 
-	if len(remainingChangesets) != 1 {
-		t.Errorf("expected 1 changeset remaining, got %d", len(remainingChangesets))
-	}
+	require.Len(t, remainingChangesets, 1)
 
 	// Verify: API changeset still exists
 	apiChangesets := changeset.FilterByProject(remainingChangesets, "api")
-	if len(apiChangesets) != 1 {
-		t.Errorf("expected 1 changeset for api after versioning auth, got %d", len(apiChangesets))
-	}
+	require.Len(t, apiChangesets, 1)
 
 	// Verify the remaining changeset is for API
-	if !apiChangesets[0].AffectsProject("api") {
-		t.Error("remaining changeset should affect api project")
-	}
+	require.True(t, apiChangesets[0].AffectsProject("api"), "remaining changeset should affect api project")
 
-	if apiChangesets[0].AffectsProject("auth") {
-		t.Error("remaining changeset should not affect auth project")
-	}
+	require.False(t, apiChangesets[0].AffectsProject("auth"), "remaining changeset should not affect auth project")
 }
 
 func TestVersionBumping(t *testing.T) {
@@ -275,14 +208,10 @@ func TestVersionBumping(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			version, err := models.ParseVersion(tt.version)
-			if err != nil {
-				t.Fatalf("failed to parse version: %v", err)
-			}
+			require.NoError(t, err)
 
 			bumped := version.Bump(tt.bump)
-			if bumped.String() != tt.expected {
-				t.Errorf("expected %s, got %s", tt.expected, bumped.String())
-			}
+			require.Equal(t, tt.expected, bumped.String())
 		})
 	}
 }
@@ -306,9 +235,7 @@ func TestVersionPublishWithGitTags(t *testing.T) {
 
 	// Workspace setup
 	ws := workspace.New(fs)
-	if err := ws.Detect(); err != nil {
-		t.Fatalf("failed to detect workspace: %v", err)
-	}
+	require.NoError(t, ws.Detect())
 
 	project, _ := ws.GetProject("auth")
 
@@ -323,9 +250,7 @@ func TestVersionPublishWithGitTags(t *testing.T) {
 	newVersion := currentVersion.Bump(highestBump)
 
 	// Write new version.txt
-	if err := versionFile.Write(project.RootPath, newVersion); err != nil {
-		t.Fatalf("failed to write version: %v", err)
-	}
+	require.NoError(t, versionFile.Write(project.RootPath, newVersion))
 
 	// Update changelog
 	cl := changelog.NewChangelog(fs)
@@ -343,9 +268,7 @@ func TestVersionPublishWithGitTags(t *testing.T) {
 
 	// Verify version.txt was updated
 	readVersion, _ := versionFile.Read(project.RootPath)
-	if readVersion.String() != "0.1.0" {
-		t.Errorf("expected version 0.1.0, got %s", readVersion.String())
-	}
+	require.Equal(t, "0.1.0", readVersion.String())
 
 	// Step 2: Run publish command logic
 	// Read version from version.txt
@@ -353,21 +276,15 @@ func TestVersionPublishWithGitTags(t *testing.T) {
 
 	// Try to get latest tag (should fail - no tags yet)
 	_, err := gitMock.GetLatestTag("auth")
-	if err == nil {
-		t.Error("expected error for no tags, got nil")
-	}
+	require.Error(t, err)
 
 	// Since no tag exists, this is first release - should publish
 	// Create git tag
 	tag := "auth@v" + fileVersion.String()
-	if err := gitMock.CreateTag(tag, "Release 0.1.0"); err != nil {
-		t.Fatalf("failed to create tag: %v", err)
-	}
+	require.NoError(t, gitMock.CreateTag(tag, "Release 0.1.0"))
 
 	// Push tag
-	if err := gitMock.PushTag(tag); err != nil {
-		t.Fatalf("failed to push tag: %v", err)
-	}
+	require.NoError(t, gitMock.PushTag(tag))
 
 	// Create GitHub release
 	ctx := context.Background()
@@ -376,24 +293,16 @@ func TestVersionPublishWithGitTags(t *testing.T) {
 		Name:    tag,
 		Body:    "Release notes",
 	})
-	if err != nil {
-		t.Fatalf("failed to create release: %v", err)
-	}
+	require.NoError(t, err)
 
-	if release.TagName != tag {
-		t.Errorf("expected tag %s, got %s", tag, release.TagName)
-	}
+	require.Equal(t, tag, release.TagName)
 
 	// Step 3: Try to publish again - should skip (already published)
 	// Get latest tag
 	latestTag, err := gitMock.GetLatestTag("auth")
-	if err != nil {
-		t.Fatalf("expected tag to exist, got error: %v", err)
-	}
+	require.NoError(t, err)
 
-	if latestTag != tag {
-		t.Errorf("expected tag %s, got %s", tag, latestTag)
-	}
+	require.Equal(t, tag, latestTag)
 
 	// Read version from file
 	fileVersion2, _ := versionFile.Read(project.RootPath)
@@ -403,9 +312,7 @@ func TestVersionPublishWithGitTags(t *testing.T) {
 	tagVersion, _ := models.ParseVersion(tagVersionStr)
 
 	// Compare: fileVersion <= tagVersion means already published
-	if fileVersion2.Compare(tagVersion) > 0 {
-		t.Error("expected fileVersion to equal tagVersion (already published)")
-	}
+	require.LessOrEqual(t, fileVersion2.Compare(tagVersion), 0)
 
 	// Step 4: Add another changeset and version again
 	wb2 := workspace.NewWorkspaceBuilder("/test-workspace")
@@ -432,14 +339,10 @@ func TestVersionPublishWithGitTags(t *testing.T) {
 
 	// Verify new version
 	readVersion2, _ := versionFile2.Read(project2.RootPath)
-	if readVersion2.String() != "0.1.1" {
-		t.Errorf("expected version 0.1.1, got %s", readVersion2.String())
-	}
+	require.Equal(t, "0.1.1", readVersion2.String())
 
 	// Now publish should detect version.txt (0.1.1) > git tag (0.1.0)
-	if readVersion2.Compare(tagVersion) <= 0 {
-		t.Error("expected new version to be greater than tag version")
-	}
+	require.Greater(t, readVersion2.Compare(tagVersion), 0)
 
 	// This would trigger a new publish
 	newTag := "auth@v" + readVersion2.String()
@@ -448,7 +351,5 @@ func TestVersionPublishWithGitTags(t *testing.T) {
 
 	// Verify both tags exist
 	tags := gitMock.GetAllTags()
-	if len(tags) != 2 {
-		t.Errorf("expected 2 tags, got %d", len(tags))
-	}
+	require.Len(t, tags, 2)
 }

@@ -1,7 +1,6 @@
 package e2e_test
 
 import (
-	"strings"
 	"testing"
 
 	"github.com/jakoblorz/go-changesets/internal/changeset"
@@ -11,6 +10,7 @@ import (
 	"github.com/jakoblorz/go-changesets/internal/versioning"
 	"github.com/jakoblorz/go-changesets/internal/workspace"
 	"github.com/spf13/cobra"
+	"github.com/stretchr/testify/require"
 )
 
 func TestSnapshotWorkflow(t *testing.T) {
@@ -39,43 +39,30 @@ func TestSnapshotWorkflow(t *testing.T) {
 		// And create backend@v0.1.0-rc0
 
 		err := cmd.Execute()
-		if err != nil {
-			t.Fatalf("snapshot command failed: %v", err)
-		}
+		require.NoError(t, err)
 
 		// Verify tag was created
 		tags := gitMock.GetAllTags()
-		if len(tags) != 1 {
-			t.Errorf("expected 1 tag, got %d", len(tags))
-		}
+		require.Len(t, tags, 1)
 
 		expectedTag := "backend@v0.1.0-rc0"
-		if _, exists := tags[expectedTag]; !exists {
-			t.Errorf("expected tag %s not found, got tags: %v", expectedTag, tagNames(tags))
-		}
+		_, exists := tags[expectedTag]
+		require.True(t, exists, "expected tag %s not found, got tags: %v", expectedTag, tagNames(tags))
 
 		// Verify GitHub release was created as pre-release
 		releases := ghMock.GetAllReleases("testorg", "testrepo")
-		if len(releases) != 1 {
-			t.Errorf("expected 1 GitHub release, got %d", len(releases))
-		}
+		require.Len(t, releases, 1)
 
 		release := releases[0]
-		if release.TagName != expectedTag {
-			t.Errorf("expected release tag %s, got %s", expectedTag, release.TagName)
-		}
-		if !release.Prerelease {
-			t.Errorf("expected release to be marked as prerelease")
-		}
+		require.Equal(t, expectedTag, release.TagName)
+		require.True(t, release.Prerelease, "expected release to be marked as prerelease")
 
 		// Verify changesets were NOT deleted
 		ws := workspace.New(fs)
 		ws.Detect()
 		csManager := changeset.NewManager(fs, ws.ChangesetDir())
 		remainingChangesets, _ := csManager.ReadAll()
-		if len(remainingChangesets) != 2 {
-			t.Errorf("expected changesets to remain, got %d changesets", len(remainingChangesets))
-		}
+		require.Len(t, remainingChangesets, 2, "expected changesets to remain, got %d changesets", len(remainingChangesets))
 	})
 
 	// Test 2: Second snapshot (should create rc1)
@@ -84,20 +71,15 @@ func TestSnapshotWorkflow(t *testing.T) {
 		cmd.SetArgs([]string{"--project", "backend", "--owner", "testorg", "--repo", "testrepo"})
 
 		err := cmd.Execute()
-		if err != nil {
-			t.Fatalf("second snapshot command failed: %v", err)
-		}
+		require.NoError(t, err)
 
 		// Verify rc1 tag was created
 		tags := gitMock.GetAllTags()
-		if len(tags) != 2 {
-			t.Errorf("expected 2 tags, got %d", len(tags))
-		}
+		require.Len(t, tags, 2)
 
 		expectedTag := "backend@v0.1.0-rc1"
-		if _, exists := tags[expectedTag]; !exists {
-			t.Errorf("expected tag %s not found, got tags: %v", expectedTag, tagNames(tags))
-		}
+		_, exists := tags[expectedTag]
+		require.True(t, exists, "expected tag %s not found, got tags: %v", expectedTag, tagNames(tags))
 	})
 
 	// Test 3: Version command (should delete changesets)
@@ -117,16 +99,12 @@ func TestSnapshotWorkflow(t *testing.T) {
 		versionFile := versioning.NewVersionFile(fs)
 		version, _ := versionFile.Read(project.RootPath)
 
-		if version.String() != "0.1.0" {
-			t.Errorf("expected version 0.1.0, got %s", version.String())
-		}
+		require.Equal(t, "0.1.0", version.String())
 
 		// Verify changesets were deleted
 		csManager := changeset.NewManager(fs, ws.ChangesetDir())
 		remainingChangesets, _ := csManager.ReadAll()
-		if len(remainingChangesets) != 0 {
-			t.Errorf("expected changesets to be deleted, got %d changesets", len(remainingChangesets))
-		}
+		require.Len(t, remainingChangesets, 0, "expected changesets to be deleted, got %d changesets", len(remainingChangesets))
 	})
 
 	// Test 4: Publish command (should ignore RC tags)
@@ -146,9 +124,8 @@ func TestSnapshotWorkflow(t *testing.T) {
 		// Verify final release tag was created (without -rc suffix)
 		tags := gitMock.GetAllTags()
 		expectedTag := "backend@v0.1.0"
-		if _, exists := tags[expectedTag]; !exists {
-			t.Errorf("expected final tag %s not found, got tags: %v", expectedTag, tagNames(tags))
-		}
+		_, exists := tags[expectedTag]
+		require.True(t, exists, "expected final tag %s not found, got tags: %v", expectedTag, tagNames(tags))
 
 		// Verify GitHub release was created as normal release (not prerelease)
 		releases := ghMock.GetAllReleases("testorg", "testrepo")
@@ -160,13 +137,9 @@ func TestSnapshotWorkflow(t *testing.T) {
 			}
 		}
 
-		if finalRelease == nil {
-			t.Fatalf("final release %s not found", expectedTag)
-		}
+		require.NotNil(t, finalRelease, "final release %s not found", expectedTag)
 
-		if finalRelease.Prerelease {
-			t.Errorf("expected final release to NOT be marked as prerelease")
-		}
+		require.False(t, finalRelease.Prerelease, "expected final release to NOT be marked as prerelease")
 	})
 }
 
@@ -184,13 +157,8 @@ func TestSnapshotWithNoChangesets(t *testing.T) {
 	cmd.SetArgs([]string{"--project", "backend", "--owner", "testorg", "--repo", "testrepo"})
 
 	err := cmd.Execute()
-	if err == nil {
-		t.Fatal("expected error when no changesets found, got nil")
-	}
-
-	if !strings.Contains(err.Error(), "no changesets found") {
-		t.Errorf("expected 'no changesets found' error, got: %v", err)
-	}
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "no changesets found")
 }
 
 func TestSnapshotViaEach(t *testing.T) {
@@ -229,22 +197,17 @@ func TestSnapshotViaEach(t *testing.T) {
 			cmd.SetArgs([]string{"--project", projectName, "--owner", "testorg", "--repo", "testrepo"})
 
 			err := cmd.Execute()
-			if err != nil {
-				t.Fatalf("snapshot failed for %s: %v", projectName, err)
-			}
+			require.NoError(t, err, "snapshot failed for %s: %v", projectName, err)
 		}
 
 		// Verify both projects got RC tags
 		tags := gitMock.GetAllTags()
-		if len(tags) != 2 {
-			t.Errorf("expected 2 RC tags, got %d: %v", len(tags), tagNames(tags))
-		}
+		require.Len(t, tags, 2, "expected 2 RC tags, got %d: %v", len(tags), tagNames(tags))
 
 		expectedTags := []string{"backend@v0.1.0-rc0", "www@v0.0.1-rc0"}
 		for _, expectedTag := range expectedTags {
-			if _, exists := tags[expectedTag]; !exists {
-				t.Errorf("expected tag %s not found", expectedTag)
-			}
+			_, exists := tags[expectedTag]
+			require.True(t, exists, "expected tag %s not found", expectedTag)
 		}
 	})
 }
