@@ -71,7 +71,7 @@ func (c *PublishCommand) Run(cmd *cobra.Command, args []string) error {
 
 	fmt.Printf("Version from version.txt: %s\n", fileVersion.String())
 
-	tagVersion, err := c.getLatestTagVersion(resolved.Name)
+	tagVersion, err := getLatestNonRCVersion(c.git, resolved.Name)
 	if err != nil {
 		tagVersion = &models.Version{Major: 0, Minor: 0, Patch: 0}
 		fmt.Printf("No existing git tag found (first release)\n")

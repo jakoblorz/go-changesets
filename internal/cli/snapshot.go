@@ -174,7 +174,7 @@ func (c *SnapshotCommand) calculateNextVersion(projectName string, bump models.B
 		return nil, fmt.Errorf("git client not available")
 	}
 
-	latestVersion, err := c.getLatestNonRCVersion(projectName)
+	latestVersion, err := getLatestNonRCVersion(c.git, projectName)
 	if err != nil {
 		latestVersion = &models.Version{Major: 0, Minor: 0, Patch: 0}
 		fmt.Printf("No existing tags found (first release)\n")
@@ -184,35 +184,6 @@ func (c *SnapshotCommand) calculateNextVersion(projectName string, bump models.B
 
 	nextVersion := latestVersion.Bump(bump)
 	return nextVersion, nil
-}
-
-func (c *SnapshotCommand) getLatestNonRCVersion(projectName string) (*models.Version, error) {
-	prefix := fmt.Sprintf("%s@v*", projectName)
-	tags, err := c.git.GetTagsWithPrefix(prefix)
-	if err != nil {
-		return nil, err
-	}
-
-	for _, tag := range tags {
-		rcNum, _ := c.git.ExtractRCNumber(tag)
-		if rcNum >= 0 {
-			continue
-		}
-
-		parts := strings.Split(tag, "@")
-		if len(parts) != 2 {
-			continue
-		}
-
-		version, err := models.ParseVersion(parts[1])
-		if err != nil {
-			continue
-		}
-
-		return version, nil
-	}
-
-	return nil, fmt.Errorf("no non-RC tags found")
 }
 
 func (c *SnapshotCommand) findNextRCNumber(projectName string, version *models.Version) (int, error) {

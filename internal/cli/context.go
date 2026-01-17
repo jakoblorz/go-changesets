@@ -262,6 +262,12 @@ func enrichChangesetsWithPRInfo(git git.GitClient, ghClient github.GitHubClient,
 	}).EnrichChangesetsWithPRInfo(changesets, owner, repo)
 }
 
+func getLatestNonRCVersion(git git.GitClient, projectName string) (*models.Version, error) {
+	return (&gitOperator{
+		git: git,
+	}).GetLatestNonRCVersion(projectName)
+}
+
 func (c *gitOperator) EnrichChangesetsWithPRInfo(changesets []*models.Changeset, owner, repo string) error {
 	if c.git == nil {
 		fmt.Println("⚠️  Git client not available, skipping PR enrichment")
@@ -289,4 +295,37 @@ func (c *gitOperator) EnrichChangesetsWithPRInfo(changesets []*models.Changeset,
 	}
 
 	return nil
+}
+
+func (c *gitOperator) GetLatestNonRCVersion(projectName string) (*models.Version, error) {
+	if c.git == nil {
+		return nil, fmt.Errorf("git client not available")
+	}
+
+	prefix := fmt.Sprintf("%s@v*", projectName)
+	tags, err := c.git.GetTagsWithPrefix(prefix)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get tags: %w", err)
+	}
+
+	for _, tag := range tags {
+		rcNum, _ := c.git.ExtractRCNumber(tag)
+		if rcNum >= 0 {
+			continue
+		}
+
+		parts := strings.Split(tag, "@")
+		if len(parts) != 2 {
+			continue
+		}
+
+		version, err := models.ParseVersion(parts[1])
+		if err != nil {
+			continue
+		}
+
+		return version, nil
+	}
+
+	return nil, fmt.Errorf("no non-RC tags found")
 }
