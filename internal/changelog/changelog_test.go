@@ -17,6 +17,40 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+const testWorkspaceRoot = "/test-workspace"
+
+func buildWorkspace(t *testing.T, setup func(*workspace.WorkspaceBuilder)) (*workspace.Workspace, *filesystem.MockFileSystem) {
+	t.Helper()
+
+	wb := workspace.NewWorkspaceBuilder(testWorkspaceRoot)
+	if setup != nil {
+		setup(wb)
+	}
+
+	fs := wb.Build()
+	ws := workspace.New(fs)
+	require.NoError(t, ws.Detect())
+
+	return ws, fs
+}
+
+func formatProjectPreview(t *testing.T, ws *workspace.Workspace, fs *filesystem.MockFileSystem, projectName string) (string, []*models.Changeset) {
+	t.Helper()
+
+	csManager := changeset.NewManager(fs, ws.ChangesetDir())
+	projectChangesets, err := csManager.ReadAllOfProject(projectName)
+	require.NoError(t, err)
+
+	cl := NewChangelog(fs)
+	project, err := ws.GetProject(projectName)
+	require.NoError(t, err)
+
+	preview, err := cl.FormatEntry(projectChangesets, projectName, project.RootPath)
+	require.NoError(t, err)
+
+	return preview, projectChangesets
+}
+
 func TestChangelog_FormatEntry(t *testing.T) {
 	fs := filesystem.NewMockFileSystem()
 	cl := NewChangelog(fs)
@@ -25,7 +59,6 @@ func TestChangelog_FormatEntry(t *testing.T) {
 		name        string
 		changesets  []*models.Changeset
 		projectName string
-		want        string
 	}{
 		{
 			name:        "no changesets",
@@ -33,155 +66,46 @@ func TestChangelog_FormatEntry(t *testing.T) {
 			projectName: "auth",
 		},
 		{
-			name: "single patch changeset",
+			name: "single bump types",
 			changesets: []*models.Changeset{
-				{
-					ID:      "abc123",
-					Message: "Fix memory leak",
-					Projects: map[string]models.BumpType{
-						"auth": models.BumpPatch,
-					},
-				},
-			},
-			projectName: "auth",
-		},
-		{
-			name: "single minor changeset",
-			changesets: []*models.Changeset{
-				{
-					ID:      "def456",
-					Message: "Add OAuth2 support",
-					Projects: map[string]models.BumpType{
-						"auth": models.BumpMinor,
-					},
-				},
-			},
-			projectName: "auth",
-		},
-		{
-			name: "single major changeset",
-			changesets: []*models.Changeset{
-				{
-					ID:      "ghi789",
-					Message: "Breaking API change",
-					Projects: map[string]models.BumpType{
-						"auth": models.BumpMajor,
-					},
-				},
+				{ID: "patch", Message: "Fix memory leak", Projects: map[string]models.BumpType{"auth": models.BumpPatch}},
+				{ID: "minor", Message: "Add OAuth2 support", Projects: map[string]models.BumpType{"auth": models.BumpMinor}},
+				{ID: "major", Message: "Breaking API change", Projects: map[string]models.BumpType{"auth": models.BumpMajor}},
 			},
 			projectName: "auth",
 		},
 		{
 			name: "multiple changesets grouped by type",
 			changesets: []*models.Changeset{
-				{
-					ID:      "patch1",
-					Message: "Fix bug 1",
-					Projects: map[string]models.BumpType{
-						"auth": models.BumpPatch,
-					},
-				},
-				{
-					ID:      "minor1",
-					Message: "Add feature 1",
-					Projects: map[string]models.BumpType{
-						"auth": models.BumpMinor,
-					},
-				},
-				{
-					ID:      "patch2",
-					Message: "Fix bug 2",
-					Projects: map[string]models.BumpType{
-						"auth": models.BumpPatch,
-					},
-				},
-				{
-					ID:      "minor2",
-					Message: "Add feature 2",
-					Projects: map[string]models.BumpType{
-						"auth": models.BumpMinor,
-					},
-				},
+				{ID: "patch1", Message: "Fix bug 1", Projects: map[string]models.BumpType{"auth": models.BumpPatch}},
+				{ID: "minor1", Message: "Add feature 1", Projects: map[string]models.BumpType{"auth": models.BumpMinor}},
+				{ID: "patch2", Message: "Fix bug 2", Projects: map[string]models.BumpType{"auth": models.BumpPatch}},
+				{ID: "minor2", Message: "Add feature 2", Projects: map[string]models.BumpType{"auth": models.BumpMinor}},
 			},
 			projectName: "auth",
 		},
 		{
 			name: "filters by project name",
 			changesets: []*models.Changeset{
-				{
-					ID:      "auth-change",
-					Message: "Auth change",
-					Projects: map[string]models.BumpType{
-						"auth": models.BumpMinor,
-					},
-				},
-				{
-					ID:      "api-change",
-					Message: "API change",
-					Projects: map[string]models.BumpType{
-						"api": models.BumpMinor,
-					},
-				},
+				{ID: "auth-change", Message: "Auth change", Projects: map[string]models.BumpType{"auth": models.BumpMinor}},
+				{ID: "api-change", Message: "API change", Projects: map[string]models.BumpType{"api": models.BumpMinor}},
 			},
 			projectName: "auth",
 		},
 		{
 			name: "empty project name includes all",
 			changesets: []*models.Changeset{
-				{
-					ID:      "change1",
-					Message: "Change 1",
-					Projects: map[string]models.BumpType{
-						"auth": models.BumpMinor,
-					},
-				},
-				{
-					ID:      "change2",
-					Message: "Change 2",
-					Projects: map[string]models.BumpType{
-						"api": models.BumpPatch,
-					},
-				},
+				{ID: "change1", Message: "Change 1", Projects: map[string]models.BumpType{"auth": models.BumpMinor}},
+				{ID: "change2", Message: "Change 2", Projects: map[string]models.BumpType{"api": models.BumpPatch}},
 			},
 			projectName: "",
 		},
 		{
-			name: "multiline message",
+			name: "multiline message with mixed bump types",
 			changesets: []*models.Changeset{
-				{
-					ID:      "multiline",
-					Message: "Add new feature\n\nThis is a longer description\n with multiple lines",
-					Projects: map[string]models.BumpType{
-						"auth": models.BumpMinor,
-					},
-				},
-			},
-			projectName: "auth",
-		},
-		{
-			name: "multiline message with additional bump types",
-			changesets: []*models.Changeset{
-				{
-					ID:      "multiline",
-					Message: "Add new feature\n\nThis is a longer description\n with multiple lines",
-					Projects: map[string]models.BumpType{
-						"auth": models.BumpMinor,
-					},
-				},
-				{
-					ID:      "patch-fix",
-					Message: "Fix minor bug",
-					Projects: map[string]models.BumpType{
-						"auth": models.BumpPatch,
-					},
-				},
-				{
-					ID:      "patch-fix-2",
-					Message: "Fix another minor bug",
-					Projects: map[string]models.BumpType{
-						"auth": models.BumpPatch,
-					},
-				},
+				{ID: "multiline", Message: "Add new feature\n\nThis is a longer description\n with multiple lines", Projects: map[string]models.BumpType{"auth": models.BumpMinor}},
+				{ID: "patch-fix", Message: "Fix minor bug", Projects: map[string]models.BumpType{"auth": models.BumpPatch}},
+				{ID: "patch-fix-2", Message: "Fix another minor bug", Projects: map[string]models.BumpType{"auth": models.BumpPatch}},
 			},
 			projectName: "auth",
 		},
@@ -189,44 +113,11 @@ func TestChangelog_FormatEntry(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := cl.FormatEntry(tt.changesets, tt.projectName, "/workspace")
-			assert.NoError(t, err, "FormatEntry() should not return an error")
-			snaps.MatchSnapshot(t, got)
+			result, err := cl.FormatEntry(tt.changesets, tt.projectName, "/workspace")
+			require.NoError(t, err)
+			snaps.MatchSnapshot(t, result)
 		})
 	}
-}
-
-func TestChangelog_FormatEntry_AllBumpTypes(t *testing.T) {
-	fs := filesystem.NewMockFileSystem()
-	cl := NewChangelog(fs)
-
-	changesets := []*models.Changeset{
-		{
-			ID:      "major1",
-			Message: "Breaking change",
-			Projects: map[string]models.BumpType{
-				"auth": models.BumpMajor,
-			},
-		},
-		{
-			ID:      "minor1",
-			Message: "New feature",
-			Projects: map[string]models.BumpType{
-				"auth": models.BumpMinor,
-			},
-		},
-		{
-			ID:      "patch1",
-			Message: "Bug fix",
-			Projects: map[string]models.BumpType{
-				"auth": models.BumpPatch,
-			},
-		},
-	}
-
-	result, err := cl.FormatEntry(changesets, "auth", "/workspace")
-	require.NoError(t, err, "FormatEntry() should not return an error")
-	snaps.MatchSnapshot(t, result)
 }
 
 func TestChangelog_FormatEntry_RawItems(t *testing.T) {
@@ -285,32 +176,15 @@ func TestChangelog_FormatEntry_RawItems(t *testing.T) {
 }
 
 func TestChangelog_FormatEntry_InProjectContext(t *testing.T) {
-	// Setup mock workspace with multiple projects
-	wb := workspace.NewWorkspaceBuilder("/test-workspace")
-	wb.AddProject("auth", "packages/auth", "github.com/test/auth")
-	wb.AddProject("api", "packages/api", "github.com/test/api")
+	ws, fs := buildWorkspace(t, func(wb *workspace.WorkspaceBuilder) {
+		wb.AddProject("auth", "packages/auth", "github.com/test/auth")
+		wb.AddProject("api", "packages/api", "github.com/test/api")
+		wb.AddChangeset("auth-minor", "auth", "minor", "Add OAuth2 authentication support")
+		wb.AddChangeset("auth-patch", "auth", "patch", "Fix memory leak in session handler")
+		wb.AddChangeset("api-minor", "api", "minor", "Add GraphQL endpoint")
+	})
 
-	// Add changesets
-	wb.AddChangeset("auth-minor", "auth", "minor", "Add OAuth2 authentication support")
-	wb.AddChangeset("auth-patch", "auth", "patch", "Fix memory leak in session handler")
-	wb.AddChangeset("api-minor", "api", "minor", "Add GraphQL endpoint")
-
-	fs := wb.Build()
-
-	// Detect workspace
-	ws := workspace.New(fs)
-	require.NoError(t, ws.Detect())
-
-	csManager := changeset.NewManager(fs, ws.ChangesetDir())
-	allChangesets, err := csManager.ReadAll()
-	require.NoError(t, err)
-	require.Len(t, allChangesets, 3)
-
-	authChangesets := changeset.FilterByProject(allChangesets, "auth")
-	cl := NewChangelog(fs)
-	authProject, _ := ws.GetProject("auth")
-	preview, err := cl.FormatEntry(authChangesets, "auth", authProject.RootPath)
-	require.NoError(t, err)
+	preview, _ := formatProjectPreview(t, ws, fs, "auth")
 
 	require.Contains(t, preview, "### Minor Changes")
 	require.Contains(t, preview, "### Patch Changes")
@@ -319,11 +193,6 @@ func TestChangelog_FormatEntry_InProjectContext(t *testing.T) {
 }
 
 func TestChangelog_FormatEntry_MultilineMessages(t *testing.T) {
-	// Setup workspace
-	wb := workspace.NewWorkspaceBuilder("/test-workspace")
-	wb.AddProject("auth", "packages/auth", "github.com/test/auth")
-
-	// Add changeset with multiline message
 	multilineMsg := `Add comprehensive OAuth2 support
 
 This change includes:
@@ -331,24 +200,16 @@ This change includes:
 - GitHub OAuth2 provider
 - Token refresh mechanism`
 
-	wb.AddChangeset("multiline", "auth", "minor", multilineMsg)
-	fs := wb.Build()
+	ws, fs := buildWorkspace(t, func(wb *workspace.WorkspaceBuilder) {
+		wb.AddProject("auth", "packages/auth", "github.com/test/auth")
+		wb.AddChangeset("multiline", "auth", "minor", multilineMsg)
+	})
 
-	ws := workspace.New(fs)
-	require.NoError(t, ws.Detect())
+	preview, _ := formatProjectPreview(t, ws, fs, "auth")
 
-	csManager := changeset.NewManager(fs, ws.ChangesetDir())
-	allChangesets, err := csManager.ReadAll()
-	require.NoError(t, err)
+	require.Contains(t, preview, "Add comprehensive OAuth2 support")
+	require.Contains(t, preview, "Google OAuth2 provider")
 
-	authChangesets := changeset.FilterByProject(allChangesets, "auth")
-	cl := NewChangelog(fs)
-	authProject, _ := ws.GetProject("auth")
-	preview, err := cl.FormatEntry(authChangesets, "auth", authProject.RootPath)
-	require.NoError(t, err)
-
-	require.True(t, strings.Contains(preview, "Add comprehensive OAuth2 support"), "Expected first line in preview")
-	require.True(t, strings.Contains(preview, "Google OAuth2 provider"), "Expected detail line in preview")
 	lines := strings.Split(preview, "\n")
 	foundIndented := false
 	for _, line := range lines {
@@ -361,88 +222,49 @@ This change includes:
 }
 
 func TestChangelog_FormatEntry_ContextIntegration(t *testing.T) {
-	// Test that ProjectContext would include changelog preview
-	// This simulates what the 'each' command does
-	wb := workspace.NewWorkspaceBuilder("/test-workspace")
-	wb.AddProject("auth", "packages/auth", "github.com/test/auth")
-	wb.SetVersion("auth", "0.1.0")
-	wb.AddChangeset("test", "auth", "minor", "Add new feature")
-	fs := wb.Build()
+	ws, fs := buildWorkspace(t, func(wb *workspace.WorkspaceBuilder) {
+		wb.AddProject("auth", "packages/auth", "github.com/test/auth")
+		wb.SetVersion("auth", "0.1.0")
+		wb.AddChangeset("test", "auth", "minor", "Add new feature")
+	})
 
-	ws := workspace.New(fs)
-	require.NoError(t, ws.Detect())
+	preview, changesets := formatProjectPreview(t, ws, fs, "auth")
 
-	csManager := changeset.NewManager(fs, ws.ChangesetDir())
-	allChangesets, err := csManager.ReadAll()
-	require.NoError(t, err)
-
-	// Build context for auth project (simulating what each command does)
 	project := ws.Projects[0]
-	projectChangesets := changeset.FilterByProject(allChangesets, project.Name)
-
-	// Generate changelog preview
-	var changelogPreview string
-	if len(projectChangesets) > 0 {
-		cl := NewChangelog(fs)
-		changelogPreview, err = cl.FormatEntry(projectChangesets, project.Name, project.RootPath)
-		require.NoError(t, err)
-	}
-
-	// Create context
 	ctx := &models.ProjectContext{
 		Project:          project.Name,
 		ProjectPath:      project.RootPath,
 		ModulePath:       project.ModulePath,
-		HasChangesets:    len(projectChangesets) > 0,
-		ChangelogPreview: changelogPreview,
+		HasChangesets:    len(changesets) > 0,
+		ChangelogPreview: preview,
 	}
 
-	// Verify context has changelog preview
-	require.NotEmpty(t, ctx.ChangelogPreview, "Expected ChangelogPreview to be populated in context")
-
+	require.NotEmpty(t, ctx.ChangelogPreview)
 	require.Contains(t, ctx.ChangelogPreview, "Add new feature")
 
-	// Verify it can be marshaled to JSON
 	jsonData, err := json.Marshal(ctx)
 	require.NoError(t, err)
 
-	// Verify JSON contains changelogPreview field
 	jsonStr := string(jsonData)
 	require.Contains(t, jsonStr, "changelogPreview")
 
-	// Unmarshal and verify
 	var ctxCopy models.ProjectContext
 	require.NoError(t, json.Unmarshal(jsonData, &ctxCopy))
 
-	require.Equal(t, ctx.ChangelogPreview, ctxCopy.ChangelogPreview, "ChangelogPreview not preserved through JSON round-trip")
+	require.Equal(t, ctx.ChangelogPreview, ctxCopy.ChangelogPreview)
 }
 
 func TestChangelog_FormatEntry_OrderByBumpType(t *testing.T) {
-	// Verify that changesets are ordered by bump type (Major, Minor, Patch)
-	wb := workspace.NewWorkspaceBuilder("/test-workspace")
-	wb.AddProject("auth", "packages/auth", "github.com/test/auth")
+	ws, fs := buildWorkspace(t, func(wb *workspace.WorkspaceBuilder) {
+		wb.AddProject("auth", "packages/auth", "github.com/test/auth")
+		wb.AddChangeset("patch1", "auth", "patch", "Fix bug 1")
+		wb.AddChangeset("major1", "auth", "major", "Breaking change")
+		wb.AddChangeset("minor1", "auth", "minor", "New feature")
+		wb.AddChangeset("patch2", "auth", "patch", "Fix bug 2")
+	})
 
-	// Add in random order
-	wb.AddChangeset("patch1", "auth", "patch", "Fix bug 1")
-	wb.AddChangeset("major1", "auth", "major", "Breaking change")
-	wb.AddChangeset("minor1", "auth", "minor", "New feature")
-	wb.AddChangeset("patch2", "auth", "patch", "Fix bug 2")
+	preview, _ := formatProjectPreview(t, ws, fs, "auth")
 
-	fs := wb.Build()
-	ws := workspace.New(fs)
-	require.NoError(t, ws.Detect())
-
-	csManager := changeset.NewManager(fs, ws.ChangesetDir())
-	allChangesets, err := csManager.ReadAll()
-	require.NoError(t, err)
-
-	authChangesets := changeset.FilterByProject(allChangesets, "auth")
-	cl := NewChangelog(fs)
-	authProject, _ := ws.GetProject("auth")
-	preview, err := cl.FormatEntry(authChangesets, "auth", authProject.RootPath)
-	require.NoError(t, err)
-
-	// Find positions of each section
 	majorIdx := strings.Index(preview, "### Major Changes")
 	minorIdx := strings.Index(preview, "### Minor Changes")
 	patchIdx := strings.Index(preview, "### Patch Changes")
@@ -451,7 +273,6 @@ func TestChangelog_FormatEntry_OrderByBumpType(t *testing.T) {
 	require.NotEqual(t, -1, minorIdx, "Missing Minor section in preview:\n%s", preview)
 	require.NotEqual(t, -1, patchIdx, "Missing Patch section in preview:\n%s", preview)
 
-	// Verify order: Major before Minor before Patch
 	require.Less(t, majorIdx, minorIdx, "Major Changes should come before Minor Changes")
 	require.Less(t, minorIdx, patchIdx, "Minor Changes should come before Patch Changes")
 }
