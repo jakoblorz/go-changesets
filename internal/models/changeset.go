@@ -93,18 +93,3 @@ func (c *Changeset) AffectsProject(projectName string) bool {
 	_, exists := c.Projects[projectName]
 	return exists
 }
-
-// FormatPRSuffix returns a formatted PR reference string for use in changelogs
-// Returns empty string if no PR is associated
-// Format: "(#123 by @author)" or "[#123](url) by @author" if includeLink is true
-func (c *Changeset) FormatPRSuffix(includeLink bool) string {
-	if c.PR == nil {
-		return ""
-	}
-
-	if includeLink && c.PR.URL != "" {
-		return fmt.Sprintf("[#%d](%s) by @%s", c.PR.Number, c.PR.URL, c.PR.Author)
-	}
-
-	return fmt.Sprintf("(#%d by @%s)", c.PR.Number, c.PR.Author)
-}

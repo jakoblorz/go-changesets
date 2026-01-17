@@ -100,7 +100,7 @@ func (b *projectContextBuilder) Build(ws *workspace.Workspace) ([]*models.Projec
 			ChangelogPreview: "",
 		}
 
-		projectChangesets := csManager.FilterByProject(allChangesets, project.Name)
+		projectChangesets := changeset.FilterByProject(allChangesets, project.Name)
 		ctx.HasChangesets = len(projectChangesets) > 0
 
 		for _, cs := range projectChangesets {

@@ -70,7 +70,7 @@ func (c *VersionCommand) Run(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to read changesets: %w", err)
 	}
 
-	projectChangesets := csManager.FilterByProject(allChangesets, resolved.Name)
+	projectChangesets := changeset.FilterByProject(allChangesets, resolved.Name)
 	if len(projectChangesets) == 0 {
 		fmt.Println("⚠️  No changesets found for this project")
 		return nil

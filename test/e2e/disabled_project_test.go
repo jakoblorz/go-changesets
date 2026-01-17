@@ -143,13 +143,13 @@ func TestDisabledProject_WithChangesets(t *testing.T) {
 	}
 
 	// Filter by backend - should get 1
-	backendCS := csManager.FilterByProject(allChangesets, "backend")
+	backendCS := changeset.FilterByProject(allChangesets, "backend")
 	if len(backendCS) != 1 {
 		t.Errorf("Expected 1 changeset for backend, got %d", len(backendCS))
 	}
 
 	// Filter by internal - should get 1 (changesets still exist)
-	internalCS := csManager.FilterByProject(allChangesets, "internal")
+	internalCS := changeset.FilterByProject(allChangesets, "internal")
 	if len(internalCS) != 1 {
 		t.Errorf("Expected 1 changeset for internal, got %d", len(internalCS))
 	}

@@ -52,7 +52,7 @@ func TestFullWorkflow(t *testing.T) {
 	}
 
 	// Test: Filter changesets by project
-	authChangesets := csManager.FilterByProject(changesets, "auth")
+	authChangesets := changeset.FilterByProject(changesets, "auth")
 	if len(authChangesets) != 2 {
 		t.Errorf("expected 2 changesets for auth, got %d", len(authChangesets))
 	}
@@ -213,7 +213,7 @@ func TestMultiProjectChangesets(t *testing.T) {
 
 	// Version the 'auth' project
 	authProject, _ := ws.GetProject("auth")
-	authChangesets := csManager.FilterByProject(allChangesets, "auth")
+	authChangesets := changeset.FilterByProject(allChangesets, "auth")
 
 	if len(authChangesets) != 1 {
 		t.Errorf("expected 1 changeset for auth, got %d", len(authChangesets))
@@ -243,7 +243,7 @@ func TestMultiProjectChangesets(t *testing.T) {
 	}
 
 	// Verify: API changeset still exists
-	apiChangesets := csManager.FilterByProject(remainingChangesets, "api")
+	apiChangesets := changeset.FilterByProject(remainingChangesets, "api")
 	if len(apiChangesets) != 1 {
 		t.Errorf("expected 1 changeset for api after versioning auth, got %d", len(apiChangesets))
 	}
@@ -316,7 +316,7 @@ func TestVersionPublishWithGitTags(t *testing.T) {
 	// Step 1: Run version command (simulates what version command does)
 	csManager := changeset.NewManager(fs, ws.ChangesetDir())
 	allChangesets, _ := csManager.ReadAll()
-	projectChangesets := csManager.FilterByProject(allChangesets, "auth")
+	projectChangesets := changeset.FilterByProject(allChangesets, "auth")
 	highestBump := csManager.GetHighestBump(projectChangesets, "auth")
 
 	versionFile := versioning.NewVersionFile(fs)
@@ -422,7 +422,7 @@ func TestVersionPublishWithGitTags(t *testing.T) {
 	// Version again
 	csManager2 := changeset.NewManager(fs2, ws2.ChangesetDir())
 	allChangesets2, _ := csManager2.ReadAll()
-	projectChangesets2 := csManager2.FilterByProject(allChangesets2, "auth")
+	projectChangesets2 := changeset.FilterByProject(allChangesets2, "auth")
 	highestBump2 := csManager2.GetHighestBump(projectChangesets2, "auth")
 
 	versionFile2 := versioning.NewVersionFile(fs2)

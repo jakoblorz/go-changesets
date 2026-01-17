@@ -43,7 +43,7 @@ func TestChangelogPreview_InProjectContext(t *testing.T) {
 	}
 
 	// Test auth project changelog preview
-	authChangesets := csManager.FilterByProject(allChangesets, "auth")
+	authChangesets := changeset.FilterByProject(allChangesets, "auth")
 	if len(authChangesets) != 2 {
 		t.Fatalf("expected 2 auth changesets, got %d", len(authChangesets))
 	}
@@ -97,7 +97,7 @@ This change includes:
 		t.Fatalf("failed to read changesets: %v", err)
 	}
 
-	authChangesets := csManager.FilterByProject(allChangesets, "auth")
+	authChangesets := changeset.FilterByProject(allChangesets, "auth")
 	cl := changelog.NewChangelog(fs)
 	authProject, _ := ws.GetProject("auth")
 	preview, err := cl.FormatEntry(authChangesets, "auth", authProject.RootPath)
@@ -149,7 +149,7 @@ func TestChangelogPreview_ContextIntegration(t *testing.T) {
 
 	// Build context for auth project (simulating what each command does)
 	project := ws.Projects[0]
-	projectChangesets := csManager.FilterByProject(allChangesets, project.Name)
+	projectChangesets := changeset.FilterByProject(allChangesets, project.Name)
 
 	// Generate changelog preview
 	var changelogPreview string
@@ -225,7 +225,7 @@ func TestChangelogPreview_OrderByBumpType(t *testing.T) {
 		t.Fatalf("failed to read changesets: %v", err)
 	}
 
-	authChangesets := csManager.FilterByProject(allChangesets, "auth")
+	authChangesets := changeset.FilterByProject(allChangesets, "auth")
 	cl := changelog.NewChangelog(fs)
 	authProject, _ := ws.GetProject("auth")
 	preview, err := cl.FormatEntry(authChangesets, "auth", authProject.RootPath)

@@ -165,14 +165,8 @@ func (m *Manager) Delete(changeset *models.Changeset) error {
 }
 
 // FilterByProject returns changesets that affect a specific project
-func (m *Manager) FilterByProject(changesets []*models.Changeset, projectName string) []*models.Changeset {
-	var filtered []*models.Changeset
-	for _, cs := range changesets {
-		if cs.AffectsProject(projectName) {
-			filtered = append(filtered, cs)
-		}
-	}
-	return filtered
+func (m *Manager) _FilterByProject(changesets []*models.Changeset, projectName string) []*models.Changeset {
+	return FilterByProject(changesets, projectName)
 }
 
 // GetHighestBump determines the highest bump type from multiple changesets
@@ -191,4 +185,15 @@ func (m *Manager) GetHighestBump(changesets []*models.Changeset, projectName str
 	}
 
 	return highest
+}
+
+// FilterByProject returns changesets that affect a specific project
+func FilterByProject(changesets []*models.Changeset, projectName string) []*models.Changeset {
+	var relevant []*models.Changeset
+	for _, cs := range changesets {
+		if cs.AffectsProject(projectName) {
+			relevant = append(relevant, cs)
+		}
+	}
+	return relevant
 }
