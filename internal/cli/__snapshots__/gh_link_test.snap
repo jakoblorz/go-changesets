@@ -1,0 +1,42 @@
+
+[TestGHLink_LinksRelatedPRs - 1]
+Auth release
+
+## 🔗 Related Release PRs
+
+This release is part of a coordinated change from commit [`abc123def456`]:
+- #1 Release auth v1.0.0 
+- #2 Release api v1.0.0 
+- #3 Release shared v1.0.0 
+
+**Tip:** These changes were made together. Consider reviewing and merging all related PRs together.
+
+---
+
+[TestGHLink_LinksRelatedPRs - 2]
+API release
+
+## 🔗 Related Release PRs
+
+This release is part of a coordinated change from commit [`abc123def456`]:
+- #1 Release auth v1.0.0 
+- #2 Release api v1.0.0 
+- #3 Release shared v1.0.0 
+
+**Tip:** These changes were made together. Consider reviewing and merging all related PRs together.
+
+---
+
+[TestGHLink_LinksRelatedPRs - 3]
+Shared release
+
+## 🔗 Related Release PRs
+
+This release is part of a coordinated change from commit [`abc123def456`]:
+- #1 Release auth v1.0.0 
+- #2 Release api v1.0.0 
+- #3 Release shared v1.0.0 
+
+**Tip:** These changes were made together. Consider reviewing and merging all related PRs together.
+
+---

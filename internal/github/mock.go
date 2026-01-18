@@ -350,6 +350,15 @@ func (m *MockClient) AddPullRequestByHead(owner, repo, headBranch string, pr *Pu
 	m.headPRs[fmt.Sprintf("%s/%s/%s", owner, repo, headBranch)] = pr
 }
 
+// GetAllPullRequests returns all pull requests for a repository (helper for testing)
+func (m *MockClient) GetAllPullRequests(owner, repo string) []*PullRequest {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	key := fmt.Sprintf("%s/%s", owner, repo)
+	return m.pullRequests[key]
+}
+
 // Reset clears all data from the mock (helper for testing)
 func (m *MockClient) Reset() {
 	m.mu.Lock()

@@ -1,0 +1,22 @@
+
+[TestGHOpen_DefaultTemplate - 1]
+🚀 Release api v2.0.0
+---
+
+[TestGHOpen_DefaultTemplate - 2]
+This PR was automatically generated for **api**.
+
+## 📋 Changes
+
+## Major Changes
+
+- Breaking API change
+
+<!-- RELATED_PRS_PLACEHOLDER -->
+
+## 📦 What happens when you merge?
+- Version bumped to **2.0.0**
+- Changelog updated
+- Changesets consumed
+- Publish workflow creates GitHub release: `api@2.0.0`
+---
