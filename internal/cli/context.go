@@ -27,17 +27,54 @@ type resolvedProject struct {
 	Project   *models.Project
 }
 
+// ToContext converts the resolved project to a ProjectContext for use in commands
+// that need full project context (like gh pr commands).
+func (r *resolvedProject) ToContext() (*models.ProjectContext, error) {
+	builder := newProjectContextBuilder(r.Workspace.FileSystem(), nil)
+	contexts, err := builder.Build(r.Workspace)
+	if err != nil {
+		return nil, fmt.Errorf("failed to build project context: %w", err)
+	}
+
+	for _, ctx := range contexts {
+		if ctx.Project == r.Name {
+			return ctx, nil
+		}
+	}
+
+	return nil, fmt.Errorf("context could not be resolved for project %q", r.Name)
+}
+
 func resolveProjectName(projectFlag string) (string, bool, error) {
 	if projectFlag != "" {
 		return projectFlag, false, nil
 	}
 
+	// Try stdin first (when run via 'changeset each')
 	ctx, err := readProjectContextFromStdin()
-	if err != nil {
-		return "", false, err
+	if err == nil {
+		return ctx.Project, true, nil
 	}
 
-	return ctx.Project, true, nil
+	// Fall back to PROJECT env var (when run directly)
+	projectName := os.Getenv("PROJECT")
+	if projectName != "" {
+		return projectName, true, nil
+	}
+
+	// Also support PROJECT_PATH env var and extract project name from path
+	// TODO: folder name may not always equal project name
+	projectPath := os.Getenv("PROJECT_PATH")
+	if projectPath != "" {
+		for i := len(projectPath) - 1; i >= 0; i-- {
+			if projectPath[i] == '/' {
+				return projectPath[i+1:], true, nil
+			}
+		}
+		return projectPath, true, nil
+	}
+
+	return "", false, fmt.Errorf("no project context available (stdin empty and PROJECT/PROJECT_PATH env vars not set)")
 }
 
 func resolveWorkspaceProject(fs filesystem.FileSystem, projectName string) (*workspace.Workspace, *models.Project, error) {
@@ -127,7 +164,11 @@ func (b *projectContextBuilder) Build(ws *workspace.Workspace) ([]*models.Projec
 		latestVer, _ := models.ParseVersion(ctx.LatestTag)
 		ctx.IsOutdated = currentVer.Compare(latestVer) > 0
 
-		if len(projectChangesets) > 0 {
+		// Check for CHANGELOG_PREVIEW env var (might be set by 'changeset each')
+		if envPreview := os.Getenv("CHANGELOG_PREVIEW"); envPreview != "" {
+			ctx.ChangelogPreview = envPreview
+		}
+		if ctx.ChangelogPreview == "" && len(projectChangesets) > 0 {
 			changelog := changelog.NewChangelog(b.fs)
 			preview, err := changelog.FormatEntry(projectChangesets, project.Name, project.RootPath)
 			if err != nil {

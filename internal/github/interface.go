@@ -17,7 +17,27 @@ type GitHubClient interface {
 
 	// Pull request operations
 	GetPullRequest(ctx context.Context, owner, repo string, number int) (*PullRequest, error)
+	GetPullRequestByHead(ctx context.Context, owner, repo, headBranch string) (*PullRequest, error)
 	ListPullRequestsByCommit(ctx context.Context, owner, repo, sha string) ([]*PullRequest, error)
+	CreatePullRequest(ctx context.Context, owner, repo string, req *CreatePullRequestRequest) (*PullRequest, error)
+	UpdatePullRequest(ctx context.Context, owner, repo string, number int, req *UpdatePullRequestRequest) (*PullRequest, error)
+	ClosePullRequest(ctx context.Context, owner, repo string, number int) error
+	DeleteBranch(ctx context.Context, owner, repo, branch string) error
+}
+
+// CreatePullRequestRequest represents a request to create a pull request
+type CreatePullRequestRequest struct {
+	Title string
+	Body  string
+	Head  string
+	Base  string
+	Draft bool
+}
+
+// UpdatePullRequestRequest represents a request to update a pull request
+type UpdatePullRequestRequest struct {
+	Title string
+	Body  string
 }
 
 // Release represents a GitHub release
@@ -55,10 +75,13 @@ type Repository struct {
 type PullRequest struct {
 	Number         int
 	Title          string
+	Body           string
 	HTMLURL        string
 	Author         string
 	State          string
 	Merged         bool
 	MergeCommitSHA string
+	Head           string
+	Base           string
 	Labels         []string
 }
