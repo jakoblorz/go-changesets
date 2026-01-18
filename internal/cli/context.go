@@ -164,7 +164,11 @@ func (b *projectContextBuilder) Build(ws *workspace.Workspace) ([]*models.Projec
 		latestVer, _ := models.ParseVersion(ctx.LatestTag)
 		ctx.IsOutdated = currentVer.Compare(latestVer) > 0
 
-		if len(projectChangesets) > 0 {
+		// Check for CHANGELOG_PREVIEW env var (might be set by 'changeset each')
+		if envPreview := os.Getenv("CHANGELOG_PREVIEW"); envPreview != "" {
+			ctx.ChangelogPreview = envPreview
+		}
+		if ctx.ChangelogPreview == "" && len(projectChangesets) > 0 {
 			changelog := changelog.NewChangelog(b.fs)
 			preview, err := changelog.FormatEntry(projectChangesets, project.Name, project.RootPath)
 			if err != nil {

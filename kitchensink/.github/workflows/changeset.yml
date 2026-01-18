@@ -68,6 +68,7 @@ jobs:
 
             git checkout -b "$BRANCH" 2>/dev/null || git checkout "$BRANCH"
 
+            # Run version - this deletes changesets
             changeset version \
               --owner ${{ github.repository_owner }} \
               --repo ${{ github.event.repository.name }}
@@ -85,10 +86,10 @@ jobs:
             git push -u origin "$BRANCH" --force
 
             # Use the new gh pr open command - handles PR creation and updates
+            # CHANGELOG_PREVIEW is already set by changeset each
             changeset gh pr open \
               --owner ${{ github.repository_owner }} \
-              --repo ${{ github.event.repository.name }} \
-              --project "$PROJECT"
+              --repo ${{ github.event.repository.name }}
 
             git checkout main
             git reset --hard origin/main
