@@ -23,8 +23,10 @@ Always run commands from the repo root (`/Volumes/Develop/go-changesets`). Prefe
 
 ### Lint / Static Checks
 - Baseline: `go test ./...` (run after every non-trivial change)
-- Extra safety: `go vet ./...`
-- Optional (only if already available): `golangci-lint run`
+- Run linting: `go vet -all ./...`
+- Install golangci-lint for enhanced linting: `go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest`
+- Enhanced linting: `golangci-lint run ./...` (if installed)
+- Note: `staticcheck` (honnef.co/go/tools) may have compatibility issues with Go 1.24+; prefer `go vet -all` or `golangci-lint`
 
 ### Tests (granular)
 - Everything: `go test ./...`

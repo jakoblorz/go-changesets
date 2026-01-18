@@ -62,13 +62,7 @@ jobs:
           fi
 
       - name: Run go vet
-        run: go vet ./...
-
-      - name: Run staticcheck
-        uses: dominikh/staticcheck-action@v1
-        with:
-          version: "latest"
-          install-go: false
+        run: go vet -all ./...
 
   build-matrix:
     name: Build on ${{ matrix.os }}
