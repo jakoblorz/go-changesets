@@ -1,9 +1,11 @@
-package versioning
+package changelog
 
 import (
 	"strings"
 
 	"github.com/jakoblorz/go-changesets/internal/models"
+
+	"github.com/jakoblorz/go-changesets/internal/changeset"
 )
 
 type formattedSection struct {
@@ -14,7 +16,7 @@ type formattedSection struct {
 func buildSections(changesets []*models.Changeset, projectName string) []formattedSection {
 	relevant := changesets
 	if projectName != "" {
-		relevant = filterByProject(changesets, projectName)
+		relevant = changeset.FilterByProject(changesets, projectName)
 	}
 
 	var major, minor, patch []*models.Changeset
@@ -46,16 +48,6 @@ func buildSections(changesets []*models.Changeset, projectName string) []formatt
 	}
 
 	return sections
-}
-
-func filterByProject(changesets []*models.Changeset, projectName string) []*models.Changeset {
-	var relevant []*models.Changeset
-	for _, cs := range changesets {
-		if cs.AffectsProject(projectName) {
-			relevant = append(relevant, cs)
-		}
-	}
-	return relevant
 }
 
 func determineBump(cs *models.Changeset, projectName string) (models.BumpType, bool) {

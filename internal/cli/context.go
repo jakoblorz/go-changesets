@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -8,9 +9,11 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/jakoblorz/go-changesets/internal/changelog"
 	"github.com/jakoblorz/go-changesets/internal/changeset"
 	"github.com/jakoblorz/go-changesets/internal/filesystem"
 	"github.com/jakoblorz/go-changesets/internal/git"
+	"github.com/jakoblorz/go-changesets/internal/github"
 	"github.com/jakoblorz/go-changesets/internal/models"
 	"github.com/jakoblorz/go-changesets/internal/versioning"
 	"github.com/jakoblorz/go-changesets/internal/workspace"
@@ -99,7 +102,7 @@ func (b *projectContextBuilder) Build(ws *workspace.Workspace) ([]*models.Projec
 			ChangelogPreview: "",
 		}
 
-		projectChangesets := csManager.FilterByProject(allChangesets, project.Name)
+		projectChangesets := changeset.FilterByProject(allChangesets, project.Name)
 		ctx.HasChangesets = len(projectChangesets) > 0
 
 		for _, cs := range projectChangesets {
@@ -125,7 +128,7 @@ func (b *projectContextBuilder) Build(ws *workspace.Workspace) ([]*models.Projec
 		ctx.IsOutdated = currentVer.Compare(latestVer) > 0
 
 		if len(projectChangesets) > 0 {
-			changelog := versioning.NewChangelog(b.fs)
+			changelog := changelog.NewChangelog(b.fs)
 			preview, err := changelog.FormatEntry(projectChangesets, project.Name, project.RootPath)
 			if err != nil {
 				return nil, fmt.Errorf("failed to format changelog preview for %s: %w", project.Name, err)
@@ -245,4 +248,79 @@ func readProjectContextFromStdin() (*models.ProjectContext, error) {
 	}
 
 	return &ctx, nil
+}
+
+type gitOperator struct {
+	git      git.GitClient
+	ghClient github.GitHubClient
+}
+
+func enrichChangesetsWithPRInfo(git git.GitClient, ghClient github.GitHubClient, changesets []*models.Changeset, owner, repo string) error {
+	return (&gitOperator{
+		git:      git,
+		ghClient: ghClient,
+	}).EnrichChangesetsWithPRInfo(changesets, owner, repo)
+}
+
+func getLatestNonRCVersion(git git.GitClient, projectName string) (*models.Version, error) {
+	return (&gitOperator{
+		git: git,
+	}).GetLatestNonRCVersion(projectName)
+}
+
+func (c *gitOperator) EnrichChangesetsWithPRInfo(changesets []*models.Changeset, owner, repo string) error {
+	ghClient := c.ghClient
+	if ghClient == nil {
+		fmt.Printf("⚠️  GitHub client not authenticated; PR enrichment may fail for private/internal repos: %+v\n", github.ErrGitHubTokenNotFound)
+		ghClient = github.NewClientWithoutAuth()
+	}
+
+	enricher := github.NewPREnricher(c.git, ghClient)
+	res, err := enricher.Enrich(context.Background(), changesets, owner, repo)
+	if err != nil {
+		return fmt.Errorf("failed to enrich changesets with PR info: %w", err)
+	}
+
+	for _, warn := range res.Warnings {
+		fmt.Printf("⚠️  Warning: %v\n", warn)
+	}
+
+	if res.Enriched > 0 {
+		fmt.Printf("✓ Enriched %d changeset(s) with PR information\n\n", res.Enriched)
+	}
+
+	return nil
+}
+
+func (c *gitOperator) GetLatestNonRCVersion(projectName string) (*models.Version, error) {
+	if c.git == nil {
+		return nil, fmt.Errorf("git client not available")
+	}
+
+	prefix := fmt.Sprintf("%s@v*", projectName)
+	tags, err := c.git.GetTagsWithPrefix(prefix)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get tags: %w", err)
+	}
+
+	for _, tag := range tags {
+		rcNum, _ := c.git.ExtractRCNumber(tag)
+		if rcNum >= 0 {
+			continue
+		}
+
+		parts := strings.Split(tag, "@")
+		if len(parts) != 2 {
+			continue
+		}
+
+		version, err := models.ParseVersion(parts[1])
+		if err != nil {
+			continue
+		}
+
+		return version, nil
+	}
+
+	return nil, fmt.Errorf("no non-RC tags found")
 }

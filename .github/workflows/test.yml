@@ -2,9 +2,8 @@ name: Tests
 
 on:
   push:
-    branches: [main, develop]
-  pull_request:
     branches: [main]
+  pull_request:
 
 jobs:
   test:
@@ -31,11 +30,8 @@ jobs:
           git config --global user.name "GitHub Actions"
           git config --global user.email "actions@github.com"
 
-      - name: Run unit tests
-        run: go test ./internal/... -v -race -coverprofile=coverage-unit.out
-
-      - name: Run E2E tests
-        run: go test ./test/e2e/... -v -race -coverprofile=coverage-e2e.out
+      - name: Run tests
+        run: go test ./... -v -race -coverprofile=coverage.out
 
       - name: Build binary
         run: go build -o changeset ./cmd/changeset

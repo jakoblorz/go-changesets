@@ -71,6 +71,16 @@ func (m *Manager) ReadAll() ([]*models.Changeset, error) {
 	return changesets, nil
 }
 
+// ReadAllOfProject reads all changesets and filters for a specific project
+func (m *Manager) ReadAllOfProject(projectName string) ([]*models.Changeset, error) {
+	all, err := m.ReadAll()
+	if err != nil {
+		return nil, err
+	}
+
+	return FilterByProject(all, projectName), nil
+}
+
 // Read reads a single changeset file
 func (m *Manager) Read(filePath string) (*models.Changeset, error) {
 	data, err := m.fs.ReadFile(filePath)
@@ -164,17 +174,6 @@ func (m *Manager) Delete(changeset *models.Changeset) error {
 	return nil
 }
 
-// FilterByProject returns changesets that affect a specific project
-func (m *Manager) FilterByProject(changesets []*models.Changeset, projectName string) []*models.Changeset {
-	var filtered []*models.Changeset
-	for _, cs := range changesets {
-		if cs.AffectsProject(projectName) {
-			filtered = append(filtered, cs)
-		}
-	}
-	return filtered
-}
-
 // GetHighestBump determines the highest bump type from multiple changesets
 func (m *Manager) GetHighestBump(changesets []*models.Changeset, projectName string) models.BumpType {
 	highest := models.BumpPatch
@@ -191,4 +190,15 @@ func (m *Manager) GetHighestBump(changesets []*models.Changeset, projectName str
 	}
 
 	return highest
+}
+
+// FilterByProject returns changesets that affect a specific project
+func FilterByProject(changesets []*models.Changeset, projectName string) []*models.Changeset {
+	var relevant []*models.Changeset
+	for _, cs := range changesets {
+		if cs.AffectsProject(projectName) {
+			relevant = append(relevant, cs)
+		}
+	}
+	return relevant
 }

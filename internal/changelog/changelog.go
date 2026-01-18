@@ -1,4 +1,4 @@
-package versioning
+package changelog
 
 import (
 	"bytes"
@@ -91,15 +91,15 @@ func NewChangelog(fs filesystem.FileSystem) *Changelog {
 	return &Changelog{fs: fs}
 }
 
-// ChangelogEntry represents an entry to be added to the changelog
-type ChangelogEntry struct {
+// Entry represents an entry to be added to the changelog
+type Entry struct {
 	Version    *models.Version
 	Date       time.Time
 	Changesets []*models.Changeset
 }
 
 // Append adds a new entry to the changelog
-func (cl *Changelog) Append(projectRoot string, projectName string, entry *ChangelogEntry) error {
+func (cl *Changelog) Append(projectRoot string, projectName string, entry *Entry) error {
 	changelogPath := filepath.Join(projectRoot, changelogFileName)
 
 	var existingContent string
@@ -162,7 +162,7 @@ func (cl *Changelog) FormatEntry(changesets []*models.Changeset, projectName, pr
 	return cl.formatWithTemplate(changesets, projectName, projectRoot, "", time.Time{})
 }
 
-func (cl *Changelog) formatEntry(entry *ChangelogEntry, projectName, projectRoot string) (string, error) {
+func (cl *Changelog) formatEntry(entry *Entry, projectName, projectRoot string) (string, error) {
 	return cl.formatWithTemplate(entry.Changesets, projectName, projectRoot, entry.Version.String(), entry.Date)
 }
 

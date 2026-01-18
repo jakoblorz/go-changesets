@@ -3,23 +3,15 @@
 
 ---
 
-[TestChangelog_FormatEntry/single_patch_changeset - 1]
-### Patch Changes
-- Fix memory leak
+[TestChangelog_FormatEntry/single_bump_types - 1]
+### Major Changes
+- Breaking API change
 
-
----
-
-[TestChangelog_FormatEntry/single_minor_changeset - 1]
 ### Minor Changes
 - Add OAuth2 support
 
-
----
-
-[TestChangelog_FormatEntry/single_major_changeset - 1]
-### Major Changes
-- Breaking API change
+### Patch Changes
+- Fix memory leak
 
 
 ---
@@ -53,16 +45,7 @@
 
 ---
 
-[TestChangelog_FormatEntry/multiline_message - 1]
-### Minor Changes
-- Add new feature
-  This is a longer description
-  with multiple lines
-
-
----
-
-[TestChangelog_FormatEntry/multiline_message_with_additional_bump_types - 1]
+[TestChangelog_FormatEntry/multiline_message_with_mixed_bump_types - 1]
 ### Minor Changes
 - Add new feature
   This is a longer description
@@ -75,24 +58,18 @@
 
 ---
 
-[TestChangelog_FormatEntry_AllBumpTypes - 1]
-### Major Changes
-- Breaking change
+[TestChangelog_FormatEntry_RawItems - 1]
 
-### Minor Changes
-- New feature
-
-### Patch Changes
-- Bug fix
-
-
+- Breaking change ([#123](https://github.com/org/repo/pull/123) by @alice)
+- New feature ([#123](https://github.com/org/repo/pull/123) by @alice)
+- Bug fix ([#123](https://github.com/org/repo/pull/123) by @alice)
 ---
 
 [TestChangelog_CustomTemplateOverride - 1]
 Project: auth Version: 1.2.3 Sections: 0
 ---
 
-[TestChangelog_Format_Append_withPRDetails/FormatEntry - 1]
+[TestChangelog_FormatEntry_withPRDetails - 1]
 ### Major Changes
 - Breaking API change
 
@@ -106,7 +83,7 @@ Project: auth Version: 1.2.3 Sections: 0
 
 ---
 
-[TestChangelog_Format_Append_withPRDetails/Append - 1]
+[TestChangelog_Append_withPRDetails/Append - 1]
 # Changelog
 
 All notable changes to this project will be documented in this file.
@@ -126,7 +103,7 @@ All notable changes to this project will be documented in this file.
 
 ---
 
-[TestChangelog_Format_Append_withPRDetails/AppendWithProject - 1]
+[TestChangelog_Append_withPRDetails/AppendWithProject - 1]
 # Changelog
 
 All notable changes to this project will be documented in this file.
@@ -146,7 +123,7 @@ All notable changes to this project will be documented in this file.
 
 ---
 
-[TestChangelog_Append/should_continously_insert_entries_below_the_header - 1]
+[TestChangelog_Append/global_changelog - 1]
 # Changelog
 
 All notable changes to this project will be documented in this file.
@@ -159,7 +136,7 @@ All notable changes to this project will be documented in this file.
 
 ---
 
-[TestChangelog_Append/should_continously_insert_entries_below_the_header - 2]
+[TestChangelog_Append/global_changelog - 2]
 # Changelog
 
 All notable changes to this project will be documented in this file.
@@ -176,7 +153,7 @@ All notable changes to this project will be documented in this file.
 
 ---
 
-[TestChangelog_Append/should_continously_insert_entries_below_the_header - 3]
+[TestChangelog_Append/global_changelog - 3]
 # Changelog
 
 All notable changes to this project will be documented in this file.
@@ -197,7 +174,7 @@ All notable changes to this project will be documented in this file.
 
 ---
 
-[TestChangelog_Append/should_include_project_name_in_version_headers - 1]
+[TestChangelog_Append/project_changelog - 1]
 # Changelog
 
 All notable changes to this project will be documented in this file.
@@ -210,7 +187,7 @@ All notable changes to this project will be documented in this file.
 
 ---
 
-[TestChangelog_Append/should_include_project_name_in_version_headers - 2]
+[TestChangelog_Append/project_changelog - 2]
 # Changelog
 
 All notable changes to this project will be documented in this file.
@@ -227,7 +204,7 @@ All notable changes to this project will be documented in this file.
 
 ---
 
-[TestChangelog_Append/should_include_project_name_in_version_headers - 3]
+[TestChangelog_Append/project_changelog - 3]
 # Changelog
 
 All notable changes to this project will be documented in this file.
@@ -246,11 +223,4 @@ All notable changes to this project will be documented in this file.
 - First change
 
 
----
-
-[TestChangelog_FormatEntry_RawItems - 1]
-
-- Breaking change ([#123](https://github.com/org/repo/pull/123) by @alice)
-- New feature ([#123](https://github.com/org/repo/pull/123) by @alice)
-- Bug fix ([#123](https://github.com/org/repo/pull/123) by @alice)
 ---

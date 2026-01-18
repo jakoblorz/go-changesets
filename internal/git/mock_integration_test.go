@@ -1,4 +1,4 @@
-package git_test
+package git
 
 import (
 	"os"
@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/jakoblorz/go-changesets/internal/git"
+	"github.com/stretchr/testify/require"
 )
 
 // TestComparison_BasicTagOperations compares mock and OS git for basic tag operations
@@ -24,26 +24,20 @@ func TestComparison_BasicTagOperations(t *testing.T) {
 	defer os.Chdir(originalDir)
 
 	// Setup mock git client
-	mockClient := git.NewMockGitClient()
+	mockClient := NewMockGitClient()
 
 	// Test 1: Create tag
 	osErr1 := osClient.CreateTag("backend@v1.0.0", "Release 1.0.0")
 	mockErr1 := mockClient.CreateTag("backend@v1.0.0", "Release 1.0.0")
 
-	if (osErr1 == nil) != (mockErr1 == nil) {
-		t.Errorf("CreateTag error mismatch: OS=%v, Mock=%v", osErr1, mockErr1)
-	}
+	require.Equal(t, osErr1 == nil, mockErr1 == nil, "CreateTag error mismatch: OS=%v, Mock=%v", osErr1, mockErr1)
 
 	// Test 2: TagExists
 	osExists, osErr2 := osClient.TagExists("backend@v1.0.0")
 	mockExists, mockErr2 := mockClient.TagExists("backend@v1.0.0")
 
-	if osExists != mockExists {
-		t.Errorf("TagExists mismatch: OS=%v, Mock=%v", osExists, mockExists)
-	}
-	if (osErr2 == nil) != (mockErr2 == nil) {
-		t.Errorf("TagExists error mismatch: OS=%v, Mock=%v", osErr2, mockErr2)
-	}
+	require.Equal(t, osExists, mockExists, "TagExists mismatch: OS=%v, Mock=%v", osExists, mockExists)
+	require.Equal(t, osErr2 == nil, mockErr2 == nil, "TagExists error mismatch: OS=%v, Mock=%v", osErr2, mockErr2)
 
 	// Test 3: Create second tag
 	createCommit(t, repoPath, "Work")
@@ -56,30 +50,20 @@ func TestComparison_BasicTagOperations(t *testing.T) {
 	osTag, osErr3 := osClient.GetLatestTag("backend")
 	mockTag, mockErr3 := mockClient.GetLatestTag("backend")
 
-	if osTag != mockTag {
-		t.Errorf("GetLatestTag mismatch: OS=%s, Mock=%s", osTag, mockTag)
-	}
-	if (osErr3 == nil) != (mockErr3 == nil) {
-		t.Errorf("GetLatestTag error mismatch: OS=%v, Mock=%v", osErr3, mockErr3)
-	}
+	require.Equal(t, osTag, mockTag, "GetLatestTag mismatch: OS=%s, Mock=%s", osTag, mockTag)
+	require.Equal(t, osErr3 == nil, mockErr3 == nil, "GetLatestTag error mismatch: OS=%v, Mock=%v", osErr3, mockErr3)
 
 	// Test 5: GetTagsWithPrefix
 	osTags, osErr4 := osClient.GetTagsWithPrefix("backend@v*")
 	mockTags, mockErr4 := mockClient.GetTagsWithPrefix("backend@v*")
 
-	if len(osTags) != len(mockTags) {
-		t.Errorf("GetTagsWithPrefix length mismatch: OS=%d, Mock=%d", len(osTags), len(mockTags))
-	}
+	require.Lenf(t, osTags, len(mockTags), "GetTagsWithPrefix length mismatch: OS=%d, Mock=%d", len(osTags), len(mockTags))
 
 	for i := 0; i < len(osTags) && i < len(mockTags); i++ {
-		if osTags[i] != mockTags[i] {
-			t.Errorf("GetTagsWithPrefix[%d] mismatch: OS=%s, Mock=%s", i, osTags[i], mockTags[i])
-		}
+		require.Equal(t, osTags[i], mockTags[i], "GetTagsWithPrefix[%d] mismatch: OS=%s, Mock=%s", i, osTags[i], mockTags[i])
 	}
 
-	if (osErr4 == nil) != (mockErr4 == nil) {
-		t.Errorf("GetTagsWithPrefix error mismatch: OS=%v, Mock=%v", osErr4, mockErr4)
-	}
+	require.Equal(t, osErr4 == nil, mockErr4 == nil, "GetTagsWithPrefix error mismatch: OS=%v, Mock=%v", osErr4, mockErr4)
 }
 
 func TestComparison_WildcardPatterns(t *testing.T) {
@@ -94,7 +78,7 @@ func TestComparison_WildcardPatterns(t *testing.T) {
 	os.Chdir(repoPath)
 	defer os.Chdir(originalDir)
 
-	mockClient := git.NewMockGitClient()
+	mockClient := NewMockGitClient()
 
 	// Create identical tags on both
 	tags := []struct {
@@ -128,15 +112,10 @@ func TestComparison_WildcardPatterns(t *testing.T) {
 		osTags, _ := osClient.GetTagsWithPrefix(pattern)
 		mockTags, _ := mockClient.GetTagsWithPrefix(pattern)
 
-		if len(osTags) != len(mockTags) {
-			t.Errorf("Pattern %s: length mismatch OS=%d, Mock=%d", pattern, len(osTags), len(mockTags))
-			continue
-		}
+		require.Lenf(t, osTags, len(mockTags), "Pattern %s: length mismatch OS=%d, Mock=%d", pattern, len(osTags), len(mockTags))
 
 		for i := 0; i < len(osTags); i++ {
-			if osTags[i] != mockTags[i] {
-				t.Errorf("Pattern %s[%d]: OS=%s, Mock=%s", pattern, i, osTags[i], mockTags[i])
-			}
+			require.Equal(t, osTags[i], mockTags[i], "Pattern %s[%d]: OS=%s, Mock=%s", pattern, i, osTags[i], mockTags[i])
 		}
 	}
 }
@@ -149,7 +128,7 @@ func TestComparison_RCExtraction(t *testing.T) {
 	osClient, _, cleanup := setupTestRepo(t)
 	defer cleanup()
 
-	mockClient := git.NewMockGitClient()
+	mockClient := NewMockGitClient()
 
 	testCases := []string{
 		"backend@v1.2.0-rc0",
@@ -165,13 +144,9 @@ func TestComparison_RCExtraction(t *testing.T) {
 		osNum, osErr := osClient.ExtractRCNumber(tag)
 		mockNum, mockErr := mockClient.ExtractRCNumber(tag)
 
-		if osNum != mockNum {
-			t.Errorf("ExtractRCNumber(%s): OS=%d, Mock=%d", tag, osNum, mockNum)
-		}
+		require.Equal(t, osNum, mockNum, "ExtractRCNumber(%s): OS=%d, Mock=%d", tag, osNum, mockNum)
 
-		if (osErr == nil) != (mockErr == nil) {
-			t.Errorf("ExtractRCNumber(%s) error mismatch: OS=%v, Mock=%v", tag, osErr, mockErr)
-		}
+		require.Equal(t, osErr == nil, mockErr == nil, "ExtractRCNumber(%s) error mismatch: OS=%v, Mock=%v", tag, osErr, mockErr)
 	}
 }
 
@@ -187,7 +162,7 @@ func TestComparison_TagSorting(t *testing.T) {
 	os.Chdir(repoPath)
 	defer os.Chdir(originalDir)
 
-	mockClient := git.NewMockGitClient()
+	mockClient := NewMockGitClient()
 
 	// Create tags in random order
 	tagOrder := []string{
@@ -211,18 +186,12 @@ func TestComparison_TagSorting(t *testing.T) {
 	osTags, _ := osClient.GetTagsWithPrefix("backend@v*")
 	mockTags, _ := mockClient.GetTagsWithPrefix("backend@v*")
 
-	if len(osTags) != len(mockTags) {
-		t.Fatalf("Tag count mismatch: OS=%d, Mock=%d", len(osTags), len(mockTags))
-	}
+	require.Lenf(t, osTags, len(mockTags), "Tag count mismatch: OS=%d, Mock=%d", len(osTags), len(mockTags))
 
-	// Verify same sort order
 	for i := 0; i < len(osTags); i++ {
-		if osTags[i] != mockTags[i] {
-			t.Errorf("Sort order[%d]: OS=%s, Mock=%s", i, osTags[i], mockTags[i])
-			t.Logf("Full OS order: %v", osTags)
-			t.Logf("Full Mock order: %v", mockTags)
-			break
-		}
+		require.Equal(t, osTags[i], mockTags[i], "Sort order[%d]: OS=%s, Mock=%s", i, osTags[i], mockTags[i])
+		t.Logf("Full OS order: %v", osTags)
+		t.Logf("Full Mock order: %v", mockTags)
 	}
 }
 
@@ -238,7 +207,7 @@ func TestComparison_Annotations(t *testing.T) {
 	os.Chdir(repoPath)
 	defer os.Chdir(originalDir)
 
-	mockClient := git.NewMockGitClient()
+	mockClient := NewMockGitClient()
 
 	// Create tags with multiline messages
 	message := "Release 1.0.0\n\nChangelog:\n- Feature A\n- Feature B"
@@ -250,13 +219,9 @@ func TestComparison_Annotations(t *testing.T) {
 	osAnnotation, osErr := osClient.GetTagAnnotation("backend@v1.0.0")
 	mockAnnotation, mockErr := mockClient.GetTagAnnotation("backend@v1.0.0")
 
-	if osAnnotation != mockAnnotation {
-		t.Errorf("GetTagAnnotation mismatch:\nOS=%q\nMock=%q", osAnnotation, mockAnnotation)
-	}
+	require.Equal(t, osAnnotation, mockAnnotation, "GetTagAnnotation mismatch:\nOS=%q\nMock=%q", osAnnotation, mockAnnotation)
 
-	if (osErr == nil) != (mockErr == nil) {
-		t.Errorf("GetTagAnnotation error mismatch: OS=%v, Mock=%v", osErr, mockErr)
-	}
+	require.Equal(t, osErr == nil, mockErr == nil, "GetTagAnnotation error mismatch: OS=%v, Mock=%v", osErr, mockErr)
 }
 
 func TestComparison_MultipleProjects(t *testing.T) {
@@ -271,7 +236,7 @@ func TestComparison_MultipleProjects(t *testing.T) {
 	os.Chdir(repoPath)
 	defer os.Chdir(originalDir)
 
-	mockClient := git.NewMockGitClient()
+	mockClient := NewMockGitClient()
 
 	// Create tags for multiple projects
 	projects := []struct {
@@ -302,20 +267,12 @@ func TestComparison_MultipleProjects(t *testing.T) {
 		osTags, osErr := osClient.GetTagsWithPrefix(pattern)
 		mockTags, mockErr := mockClient.GetTagsWithPrefix(pattern)
 
-		if (osErr == nil) != (mockErr == nil) {
-			t.Errorf("Project %s error mismatch: OS=%v, Mock=%v", project, osErr, mockErr)
-			continue
-		}
+		require.Equal(t, osErr == nil, mockErr == nil, "Project %s error mismatch: OS=%v, Mock=%v", project, osErr, mockErr)
 
-		if len(osTags) != len(mockTags) {
-			t.Errorf("Project %s count mismatch: OS=%d, Mock=%d", project, len(osTags), len(mockTags))
-			continue
-		}
+		require.Lenf(t, osTags, len(mockTags), "Project %s count mismatch: OS=%d, Mock=%d", project, len(osTags), len(mockTags))
 
 		for i := 0; i < len(osTags); i++ {
-			if osTags[i] != mockTags[i] {
-				t.Errorf("Project %s[%d]: OS=%s, Mock=%s", project, i, osTags[i], mockTags[i])
-			}
+			require.Equal(t, osTags[i], mockTags[i], "Project %s[%d]: OS=%s, Mock=%s", project, i, osTags[i], mockTags[i])
 		}
 	}
 }
@@ -332,7 +289,7 @@ func TestComparison_FileCreationCommit(t *testing.T) {
 	os.Chdir(repoPath)
 	defer os.Chdir(originalDir)
 
-	mockClient := git.NewMockGitClient()
+	mockClient := NewMockGitClient()
 
 	// Create .changeset directory
 	os.MkdirAll(repoPath+"/.changeset", 0755)
@@ -351,17 +308,11 @@ func TestComparison_FileCreationCommit(t *testing.T) {
 	osCommit1, osErr1 := osClient.GetFileCreationCommit(filePath1)
 	mockCommit1Retrieved, mockErr1 := mockClient.GetFileCreationCommit(filePath1)
 
-	if osCommit1 != initialCommit {
-		t.Errorf("OS GetFileCreationCommit returned wrong commit: got=%s, want=%s", osCommit1, initialCommit)
-	}
+	require.Equal(t, osCommit1, initialCommit, "OS GetFileCreationCommit returned wrong commit: got=%s, want=%s", osCommit1, initialCommit)
 
-	if mockCommit1Retrieved != mockCommit1 {
-		t.Errorf("Mock GetFileCreationCommit: got=%s, want=%s", mockCommit1Retrieved, mockCommit1)
-	}
+	require.Equal(t, mockCommit1Retrieved, mockCommit1, "Mock GetFileCreationCommit: got=%s, want=%s", mockCommit1Retrieved, mockCommit1)
 
-	if (osErr1 == nil) != (mockErr1 == nil) {
-		t.Errorf("GetFileCreationCommit error mismatch: OS=%v, Mock=%v", osErr1, mockErr1)
-	}
+	require.Equal(t, osErr1 == nil, mockErr1 == nil, "GetFileCreationCommit error mismatch: OS=%v, Mock=%v", osErr1, mockErr1)
 
 	// Create another file in new commit
 	filePath2 := ".changeset/test2.md"
@@ -376,38 +327,24 @@ func TestComparison_FileCreationCommit(t *testing.T) {
 	osCommit2, _ := osClient.GetFileCreationCommit(filePath2)
 	mockCommit2Retrieved, _ := mockClient.GetFileCreationCommit(filePath2)
 
-	if osCommit2 != secondCommit {
-		t.Errorf("OS GetFileCreationCommit for file2: got=%s, want=%s", osCommit2, secondCommit)
-	}
+	require.Equal(t, osCommit2, secondCommit, "OS GetFileCreationCommit for file2: got=%s, want=%s", osCommit2, secondCommit)
 
-	if mockCommit2Retrieved != mockCommit2 {
-		t.Errorf("Mock GetFileCreationCommit for file2: got=%s, want=%s", mockCommit2Retrieved, mockCommit2)
-	}
+	require.Equal(t, mockCommit2Retrieved, mockCommit2, "Mock GetFileCreationCommit for file2: got=%s, want=%s", mockCommit2Retrieved, mockCommit2)
 
 	// Test: Verify files have different creation commits
-	if osCommit1 == osCommit2 {
-		t.Error("Expected files to have different creation commits")
-	}
+	require.NotEqual(t, osCommit1, osCommit2, "Expected files to have different creation commits")
 
-	if mockCommit1 == mockCommit2 {
-		t.Error("Mock: Expected files to have different creation commits")
-	}
+	require.NotEqual(t, mockCommit1, mockCommit2, "Mock: Expected files to have different creation commits")
 
 	// Test: Non-existent file
 	osCommit3, osErr3 := osClient.GetFileCreationCommit("nonexistent.md")
 	mockCommit3, mockErr3 := mockClient.GetFileCreationCommit("nonexistent.md")
 
-	if osCommit3 != "" {
-		t.Errorf("OS should return empty string for nonexistent file, got: %s", osCommit3)
-	}
+	require.Empty(t, osCommit3, "OS should return empty string for nonexistent file, got: %s", osCommit3)
 
-	if mockCommit3 != "" {
-		t.Errorf("Mock should return empty string for nonexistent file, got: %s", mockCommit3)
-	}
+	require.Empty(t, mockCommit3, "Mock should return empty string for nonexistent file, got: %s", mockCommit3)
 
-	if (osErr3 == nil) != (mockErr3 == nil) {
-		t.Errorf("Nonexistent file error mismatch: OS=%v, Mock=%v", osErr3, mockErr3)
-	}
+	require.Equal(t, osErr3 == nil, mockErr3 == nil, "Nonexistent file error mismatch: OS=%v, Mock=%v", osErr3, mockErr3)
 }
 
 func TestComparison_CommitMessage(t *testing.T) {
@@ -422,7 +359,7 @@ func TestComparison_CommitMessage(t *testing.T) {
 	os.Chdir(repoPath)
 	defer os.Chdir(originalDir)
 
-	mockClient := git.NewMockGitClient()
+	mockClient := NewMockGitClient()
 
 	// Create commits with specific messages
 	createCommit(t, repoPath, "feat: add OAuth2 support")
@@ -437,52 +374,34 @@ func TestComparison_CommitMessage(t *testing.T) {
 	osMsg1, osErr1 := osClient.GetCommitMessage(commit1)
 	mockMsg1, mockErr1 := mockClient.GetCommitMessage(mockCommit1)
 
-	if osMsg1 != "feat: add OAuth2 support" {
-		t.Errorf("OS GetCommitMessage for commit1: got=%q, want=%q", osMsg1, "feat: add OAuth2 support")
-	}
+	require.Equal(t, osMsg1, "feat: add OAuth2 support", "OS GetCommitMessage for commit1: got=%q, want=%q", osMsg1, "feat: add OAuth2 support")
 
-	if mockMsg1 != "feat: add OAuth2 support" {
-		t.Errorf("Mock GetCommitMessage for commit1: got=%q, want=%q", mockMsg1, "feat: add OAuth2 support")
-	}
+	require.Equal(t, mockMsg1, "feat: add OAuth2 support", "Mock GetCommitMessage for commit1: got=%q, want=%q", mockMsg1, "feat: add OAuth2 support")
 
-	if (osErr1 == nil) != (mockErr1 == nil) {
-		t.Errorf("GetCommitMessage error mismatch for commit1: OS=%v, Mock=%v", osErr1, mockErr1)
-	}
+	require.Equal(t, osErr1 == nil, mockErr1 == nil, "GetCommitMessage error mismatch for commit1: OS=%v, Mock=%v", osErr1, mockErr1)
 
 	osMsg2, osErr2 := osClient.GetCommitMessage(commit2)
 	mockMsg2, mockErr2 := mockClient.GetCommitMessage(mockCommit2)
 
-	if osMsg2 != "fix: memory leak in handler" {
-		t.Errorf("OS GetCommitMessage for commit2: got=%q, want=%q", osMsg2, "fix: memory leak in handler")
-	}
+	require.Equal(t, osMsg2, "fix: memory leak in handler", "OS GetCommitMessage for commit2: got=%q, want=%q", osMsg2, "fix: memory leak in handler")
 
-	if mockMsg2 != "fix: memory leak in handler" {
-		t.Errorf("Mock GetCommitMessage for commit2: got=%q, want=%q", mockMsg2, "fix: memory leak in handler")
-	}
+	require.Equal(t, mockMsg2, "fix: memory leak in handler", "Mock GetCommitMessage for commit2: got=%q, want=%q", mockMsg2, "fix: memory leak in handler")
 
-	if (osErr2 == nil) != (mockErr2 == nil) {
-		t.Errorf("GetCommitMessage error mismatch for commit2: OS=%v, Mock=%v", osErr2, mockErr2)
-	}
+	require.Equal(t, osErr2 == nil, mockErr2 == nil, "GetCommitMessage error mismatch for commit2: OS=%v, Mock=%v", osErr2, mockErr2)
 
 	// Test: Empty commit SHA (error case)
 	_, osErr3 := osClient.GetCommitMessage("")
 	_, mockErr3 := mockClient.GetCommitMessage("")
 
-	if osErr3 == nil {
-		t.Error("OS should return error for empty commit SHA")
-	}
+	require.Error(t, osErr3, "OS should return error for empty commit SHA")
 
-	if mockErr3 == nil {
-		t.Error("Mock should return error for empty commit SHA")
-	}
+	require.Error(t, mockErr3, "Mock should return error for empty commit SHA")
 
 	// Test: Invalid commit SHA
 	_, osErr4 := osClient.GetCommitMessage("invalidsha123")
 	_, mockErr4 := mockClient.GetCommitMessage("invalidsha123")
 
-	if (osErr4 == nil) != (mockErr4 == nil) {
-		t.Errorf("Invalid SHA error mismatch: OS=%v, Mock=%v", osErr4, mockErr4)
-	}
+	require.Equal(t, osErr4 == nil, mockErr4 == nil, "Invalid SHA error mismatch: OS=%v, Mock=%v", osErr4, mockErr4)
 }
 
 // Helper: Get current commit SHA
@@ -490,8 +409,6 @@ func getCurrentCommit(t *testing.T, repoPath string) string {
 	cmd := exec.Command("git", "rev-parse", "HEAD")
 	cmd.Dir = repoPath
 	output, err := cmd.Output()
-	if err != nil {
-		t.Fatalf("Failed to get current commit: %v", err)
-	}
+	require.NoError(t, err, "Failed to get current commit")
 	return strings.TrimSpace(string(output))
 }

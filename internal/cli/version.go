@@ -1,16 +1,14 @@
 package cli
 
 import (
-	"context"
 	"fmt"
-	"os"
 	"time"
 
+	"github.com/jakoblorz/go-changesets/internal/changelog"
 	"github.com/jakoblorz/go-changesets/internal/changeset"
 	"github.com/jakoblorz/go-changesets/internal/filesystem"
 	"github.com/jakoblorz/go-changesets/internal/git"
 	"github.com/jakoblorz/go-changesets/internal/github"
-	"github.com/jakoblorz/go-changesets/internal/models"
 	"github.com/jakoblorz/go-changesets/internal/versioning"
 	"github.com/spf13/cobra"
 )
@@ -32,8 +30,8 @@ func NewVersionCommand(fs filesystem.FileSystem, gitClient git.GitClient, ghClie
 
 	cobraCmd := &cobra.Command{
 		Use:   "version",
-		Short: "Version a project based on changesets",
-		Long:  `Applies all changesets for a project, updates version.txt and CHANGELOG.md.`,
+		Short: "Version a project based on it's outstanding changesets",
+		Long:  `Applies all changesets for a project, updates version.txt, then edits project's CHANGELOG.md and the CHANGELOG.md in the root of the workspace.`,
 		RunE:  cmd.Run,
 	}
 
@@ -65,12 +63,10 @@ func (c *VersionCommand) Run(cmd *cobra.Command, args []string) error {
 	}
 
 	csManager := changeset.NewManager(c.fs, resolved.Workspace.ChangesetDir())
-	allChangesets, err := csManager.ReadAll()
+	projectChangesets, err := csManager.ReadAllOfProject(resolved.Name)
 	if err != nil {
 		return fmt.Errorf("failed to read changesets: %w", err)
 	}
-
-	projectChangesets := csManager.FilterByProject(allChangesets, resolved.Name)
 	if len(projectChangesets) == 0 {
 		fmt.Println("⚠️  No changesets found for this project")
 		return nil
@@ -81,10 +77,9 @@ func (c *VersionCommand) Run(cmd *cobra.Command, args []string) error {
 		bump, _ := cs.GetBumpForProject(resolved.Name)
 		fmt.Printf("  - %s (%s)\n", cs.ID, bump)
 	}
-	fmt.Println()
 
 	if owner != "" && repo != "" {
-		if err := c.enrichChangesetsWithPRInfo(projectChangesets, owner, repo); err != nil {
+		if err := enrichChangesetsWithPRInfo(c.git, c.ghClient, projectChangesets, owner, repo); err != nil {
 			return err
 		}
 	}
@@ -109,26 +104,26 @@ func (c *VersionCommand) Run(cmd *cobra.Command, args []string) error {
 
 	fmt.Printf("✓ Updated %s/version.txt\n", resolved.Project.RootPath)
 
-	changelog := versioning.NewChangelog(c.fs)
-	entry := &versioning.ChangelogEntry{
+	cl := changelog.NewChangelog(c.fs)
+	entry := &changelog.Entry{
 		Version:    newVersion,
 		Date:       time.Now(),
 		Changesets: projectChangesets,
 	}
 
-	if err := changelog.Append(resolved.Project.RootPath, "", entry); err != nil {
+	if err := cl.Append(resolved.Project.RootPath, "", entry); err != nil {
 		return fmt.Errorf("failed to update changelog: %w", err)
 	}
 
 	fmt.Printf("✓ Updated %s/CHANGELOG.md\n\n", resolved.Project.RootPath)
 
 	if resolved.Workspace.RootPath != resolved.Project.RootPath {
-		rootEntry := &versioning.ChangelogEntry{
+		rootEntry := &changelog.Entry{
 			Version:    newVersion,
 			Date:       entry.Date,
 			Changesets: projectChangesets,
 		}
-		if err := changelog.Append(resolved.Workspace.RootPath, resolved.Project.Name, rootEntry); err != nil {
+		if err := cl.Append(resolved.Workspace.RootPath, resolved.Project.Name, rootEntry); err != nil {
 			return fmt.Errorf("failed to update root changelog: %w", err)
 		}
 
@@ -145,41 +140,5 @@ func (c *VersionCommand) Run(cmd *cobra.Command, args []string) error {
 	}
 
 	fmt.Printf("\n🎉 Successfully versioned %s to %s\n", resolved.Name, newVersion.String())
-	return nil
-}
-
-func (c *VersionCommand) enrichChangesetsWithPRInfo(changesets []*models.Changeset, owner, repo string) error {
-	if c.git == nil {
-		fmt.Println("⚠️  Git client not available, skipping PR enrichment")
-		return nil
-	}
-
-	if c.ghClient == nil {
-		token := os.Getenv("GH_TOKEN")
-		if token == "" {
-			token = os.Getenv("GITHUB_TOKEN")
-		}
-		if token != "" {
-			c.ghClient = github.NewClient(token)
-		} else {
-			fmt.Println("⚠️  GITHUB_TOKEN or GH_TOKEN not set; PR enrichment may fail for private/internal repos")
-			c.ghClient = github.NewClientWithoutAuth()
-		}
-	}
-
-	enricher := changeset.NewPREnricher(c.git, c.ghClient)
-	res, err := enricher.Enrich(context.Background(), changesets, owner, repo)
-	if err != nil {
-		return fmt.Errorf("failed to enrich changesets with PR info: %w", err)
-	}
-
-	for _, warn := range res.Warnings {
-		fmt.Printf("⚠️  Warning: %v\n", warn)
-	}
-
-	if res.Enriched > 0 {
-		fmt.Printf("✓ Enriched %d changeset(s) with PR information\n\n", res.Enriched)
-	}
-
 	return nil
 }

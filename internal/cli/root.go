@@ -40,9 +40,7 @@ Changesets help track changes, version projects, and publish releases.`,
 func Execute() error {
 	fs := filesystem.NewOSFileSystem()
 	gitClient := git.NewOSGitClient()
-
-	// For publish command, we'll check for GITHUB_TOKEN at runtime
-	var ghClient github.GitHubClient
+	ghClient, _ := github.NewClientFromEnv()
 
 	rootCmd := NewRootCommand(fs, gitClient, ghClient)
 

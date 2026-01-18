@@ -3,92 +3,158 @@ package workspace
 import (
 	"testing"
 
+	"github.com/jakoblorz/go-changesets/internal/changeset"
 	"github.com/jakoblorz/go-changesets/internal/filesystem"
 	"github.com/jakoblorz/go-changesets/internal/models"
+	"github.com/stretchr/testify/require"
 )
 
-func TestWorkspaceDetect_GoSingleProject(t *testing.T) {
-	fs := filesystem.NewMockFileSystem()
-	fs.AddFile("/workspace/go.work", []byte("go 1.21\nuse ./auth\n"))
-	fs.AddFile("/workspace/auth/go.mod", []byte("module github.com/test/auth\n\ngo 1.21\n"))
+const testWorkspaceRoot = "/test-workspace"
 
+func buildWorkspace(t *testing.T, setup func(*WorkspaceBuilder)) (*Workspace, *filesystem.MockFileSystem) {
+	t.Helper()
+	wb := NewWorkspaceBuilder(testWorkspaceRoot)
+	if setup != nil {
+		setup(wb)
+	}
+	fs := wb.Build()
 	ws := New(fs)
-	if err := ws.Detect(); err != nil {
-		t.Fatalf("Detect() error = %v", err)
-	}
+	require.NoError(t, ws.Detect())
+	return ws, fs
+}
 
-	if len(ws.Projects) != 1 {
-		t.Fatalf("expected 1 project, got %d", len(ws.Projects))
-	}
+func TestWorkspaceDetect_GoSingleProject(t *testing.T) {
+	ws, _ := buildWorkspace(t, func(wb *WorkspaceBuilder) {
+		wb.AddProject("auth", "auth", "github.com/test/auth")
+	})
 
+	require.Len(t, ws.Projects, 1)
 	project := ws.Projects[0]
-	if project.Name != "auth" {
-		t.Fatalf("unexpected project name: %s", project.Name)
-	}
-	if project.Type != models.ProjectTypeGo {
-		t.Fatalf("expected project type go, got %s", project.Type)
-	}
-	if project.ManifestPath != "/workspace/auth/go.mod" {
-		t.Fatalf("unexpected manifest path: %s", project.ManifestPath)
-	}
+	require.Equal(t, "auth", project.Name)
+	require.Equal(t, models.ProjectTypeGo, project.Type)
+	require.Equal(t, testWorkspaceRoot+"/auth/go.mod", project.ManifestPath)
 }
 
 func TestWorkspaceDetect_GoDisabledProject(t *testing.T) {
-	fs := filesystem.NewMockFileSystem()
-	fs.AddFile("/workspace/go.work", []byte("go 1.21\nuse ./enabled\nuse ./disabled\n"))
+	ws, _ := buildWorkspace(t, func(wb *WorkspaceBuilder) {
+		wb.AddProject("enabled", "enabled", "github.com/test/enabled")
+		wb.AddProject("disabled", "disabled", "github.com/test/disabled")
+		wb.SetVersion("disabled", "false")
+	})
 
-	fs.AddFile("/workspace/enabled/go.mod", []byte("module github.com/test/enabled\n\ngo 1.21\n"))
-	fs.AddFile("/workspace/disabled/go.mod", []byte("module github.com/test/disabled\n\ngo 1.21\n"))
-	fs.AddFile("/workspace/disabled/version.txt", []byte("false\n"))
-
-	ws := New(fs)
-	if err := ws.Detect(); err != nil {
-		t.Fatalf("Detect() error = %v", err)
-	}
-
-	if len(ws.Projects) != 1 {
-		t.Fatalf("expected 1 project, got %d", len(ws.Projects))
-	}
-	if ws.Projects[0].Name != "enabled" {
-		t.Fatalf("unexpected project name: %s", ws.Projects[0].Name)
-	}
+	require.Len(t, ws.Projects, 1)
+	require.Equal(t, "enabled", ws.Projects[0].Name)
 }
 
 func TestWorkspaceDetect_GoNameCollision(t *testing.T) {
-	fs := filesystem.NewMockFileSystem()
-	fs.AddFile("/workspace/go.work", []byte("go 1.21\nuse ./app1\nuse ./app2\n"))
-	fs.AddFile("/workspace/app1/go.mod", []byte("module github.com/test/web\n\ngo 1.21\n"))
-	fs.AddFile("/workspace/app2/go.mod", []byte("module github.com/other/web\n\ngo 1.21\n"))
+	ws, _ := buildWorkspace(t, func(wb *WorkspaceBuilder) {
+		wb.AddProject("app1", "app1", "github.com/test/web")
+		wb.AddProject("app2", "app2", "github.com/other/web")
+	})
 
-	ws := New(fs)
-	if err := ws.Detect(); err != nil {
-		t.Fatalf("Detect() error = %v", err)
-	}
-
-	if len(ws.Projects) != 2 {
-		t.Fatalf("expected 2 projects, got %d", len(ws.Projects))
-	}
+	require.Len(t, ws.Projects, 2)
 
 	names := map[string]bool{}
 	for _, p := range ws.Projects {
 		names[p.Name] = true
-		if p.Type != models.ProjectTypeGo {
-			t.Fatalf("expected project type go, got %s", p.Type)
-		}
+		require.Equal(t, models.ProjectTypeGo, p.Type)
 	}
 
-	if !names["web-go"] || !names["web-go-2"] {
-		t.Fatalf("unexpected deduped names: %v", names)
-	}
+	require.Truef(t, names["web-go"], "expected web-go in %v", names)
+	require.Truef(t, names["web-go-2"], "expected web-go-2 in %v", names)
 }
 
 func TestWorkspaceDetect_WorkspaceNotFound(t *testing.T) {
-	fs := filesystem.NewMockFileSystem()
-
+	fs := NewWorkspaceBuilder(testWorkspaceRoot).FileSystem()
 	ws := New(fs)
-	if err := ws.Detect(); err == nil {
-		t.Fatalf("expected error")
-	} else if err.Error() != "workspace not found" {
-		t.Fatalf("unexpected error: %v", err)
+	err := ws.Detect()
+	require.Error(t, err)
+	require.Equal(t, "workspace not found", err.Error())
+}
+
+func TestWorkspaceDetect_NotInWorkspace(t *testing.T) {
+	ws, _ := buildWorkspace(t, func(wb *WorkspaceBuilder) {
+		wb.AddProject("backend", "apps/backend", "github.com/test/backend")
+		wb.AddProject("www", "apps/www", "github.com/test/www")
+		wb.AddProject("internal", "apps/internal", "github.com/test/internal")
+		wb.SetVersion("internal", "false")
+	})
+
+	require.Len(t, ws.Projects, 2)
+	for _, p := range ws.Projects {
+		require.NotEqual(t, "internal", p.Name)
 	}
+
+	found := map[string]bool{"backend": false, "www": false}
+	for _, p := range ws.Projects {
+		if _, ok := found[p.Name]; ok {
+			found[p.Name] = true
+		}
+	}
+	for name, ok := range found {
+		require.Truef(t, ok, "expected to find project %s", name)
+	}
+}
+
+func TestWorkspaceDetect_NotInProjectNames(t *testing.T) {
+	ws, _ := buildWorkspace(t, func(wb *WorkspaceBuilder) {
+		wb.AddProject("backend", "apps/backend", "github.com/test/backend")
+		wb.AddProject("www", "apps/www", "github.com/test/www")
+		wb.AddProject("internal", "apps/internal", "github.com/test/internal")
+		wb.SetVersion("internal", "false")
+	})
+
+	names := ws.GetProjectNames()
+	require.Len(t, names, 2)
+	for _, name := range names {
+		require.NotEqual(t, "internal", name)
+	}
+}
+
+func TestWorkspaceDetect_NotFoundByGetProject(t *testing.T) {
+	ws, _ := buildWorkspace(t, func(wb *WorkspaceBuilder) {
+		wb.AddProject("backend", "apps/backend", "github.com/test/backend")
+		wb.AddProject("internal", "apps/internal", "github.com/test/internal")
+		wb.SetVersion("internal", "false")
+	})
+
+	_, err := ws.GetProject("internal")
+	require.Error(t, err)
+	require.Equal(t, "project internal not found in workspace", err.Error())
+
+	project, err := ws.GetProject("backend")
+	require.NoError(t, err)
+	require.Equal(t, "backend", project.Name)
+}
+
+func TestWorkspaceDetect_WithChangesets(t *testing.T) {
+	ws, fs := buildWorkspace(t, func(wb *WorkspaceBuilder) {
+		wb.AddProject("backend", "apps/backend", "github.com/test/backend")
+		wb.AddProject("internal", "apps/internal", "github.com/test/internal")
+		wb.AddChangeset("abc123", "backend", "minor", "backend feature")
+		wb.AddChangeset("def456", "internal", "minor", "Internal feature")
+		wb.SetVersion("internal", "false")
+	})
+
+	csManager := changeset.NewManager(fs, ws.ChangesetDir())
+	allChangesets, err := csManager.ReadAll()
+	require.NoError(t, err)
+	require.Len(t, allChangesets, 2)
+
+	require.Len(t, changeset.FilterByProject(allChangesets, "backend"), 1)
+	require.Len(t, changeset.FilterByProject(allChangesets, "internal"), 1)
+}
+
+func TestWorkspaceDetect_AllProjectsDisabled(t *testing.T) {
+	wb := NewWorkspaceBuilder(testWorkspaceRoot)
+	wb.AddProject("internal1", "apps/internal1", "github.com/test/internal1")
+	wb.AddProject("internal2", "apps/internal2", "github.com/test/internal2")
+	wb.SetVersion("internal1", "false")
+	wb.SetVersion("internal2", "false")
+
+	fs := wb.Build()
+	ws := New(fs)
+	err := ws.Detect()
+	require.Error(t, err)
+	require.Equal(t, "failed to load projects: no projects found in workspace", err.Error())
 }
