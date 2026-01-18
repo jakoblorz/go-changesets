@@ -118,7 +118,7 @@ func TestEach_ExecuteForProject_EnvVars(t *testing.T) {
 	var buf bytes.Buffer
 	cmd := &EachCommand{
 		fs:           fs,
-		command:      []string{"sh", "-c", "env | grep -E '^(PROJECT|PROJECT_PATH|CURRENT_VERSION|LATEST_TAG|CHANGELOG_PREVIEW|CHANGESET_CONTEXT|MODULE_PATH)='"},
+		command:      []string{"sh", "-c", "env | grep -E '^(PROJECT|PROJECT_PATH|CURRENT_VERSION|LATEST_TAG|CHANGELOG_PREVIEW|CHANGESET_CONTEXT|MODULE_PATH)=' | sort"},
 		outputWriter: &buf,
 	}
 
