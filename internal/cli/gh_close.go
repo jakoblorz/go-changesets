@@ -28,12 +28,16 @@ This command finds and closes release PRs that have no remaining changesets.`,
 		Example: `  # Close obsolete PRs
   changeset gh pr close --owner myorg --repo myrepo
 
+  # For specific project
+  changeset gh pr close --owner myorg --repo myrepo --project auth
+
   # With custom comment
   changeset gh pr close --owner myorg --repo myrepo --comment "PR is no longer needed"`,
 		RunE: cmd.Run,
 	}
 
 	cobraCmd.Flags().String("comment", "", "Custom close comment")
+	cobraCmd.Flags().String("project", "", "Project name (required unless run via 'changeset each')")
 
 	return cobraCmd
 }
@@ -42,6 +46,7 @@ func (c *GHCloseCommand) Run(cmd *cobra.Command, args []string) error {
 	owner, _ := cmd.Flags().GetString("owner")
 	repo, _ := cmd.Flags().GetString("repo")
 	customComment, _ := cmd.Flags().GetString("comment")
+	projectFlag, _ := cmd.Flags().GetString("project")
 
 	if owner == "" {
 		return fmt.Errorf("--owner is required")
@@ -50,8 +55,11 @@ func (c *GHCloseCommand) Run(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("--repo is required")
 	}
 
-	resolved, err := resolveProject(c.fs, "")
+	resolved, err := resolveProject(c.fs, projectFlag)
 	if err != nil {
+		if projectFlag == "" {
+			return fmt.Errorf("--project flag required (or run via 'changeset each'): %w", err)
+		}
 		return fmt.Errorf("failed to resolve project: %w", err)
 	}
 	ctx, err := resolved.ToContext()

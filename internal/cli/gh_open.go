@@ -32,6 +32,9 @@ Uses .changeset/pr-description.tmpl if present, otherwise uses a default templat
 		Example: `  # Create release PR for current project
   changeset gh pr open --owner myorg --repo myrepo
 
+  # For specific project
+  changeset gh pr open --owner myorg --repo myrepo --project auth
+
   # With custom title template
   changeset gh pr open --owner myorg --repo myrepo --title "Release {{.Project}} v{{.Version}}"`,
 		RunE: cmd.Run,
@@ -40,6 +43,7 @@ Uses .changeset/pr-description.tmpl if present, otherwise uses a default templat
 	cobraCmd.Flags().String("base", "main", "Base branch for PR")
 	cobraCmd.Flags().String("labels", "release,automated", "Comma-separated labels for PR")
 	cobraCmd.Flags().String("mapping-file", "/tmp/pr-mapping.json", "Path to PR mapping file")
+	cobraCmd.Flags().String("project", "", "Project name (required unless run via 'changeset each')")
 	cobraCmd.Flags().String("title", "🚀 Release {{.Project}} v{{.Version}}", "PR title template (Go template syntax)")
 
 	return cobraCmd
@@ -50,6 +54,7 @@ func (c *GHOpenCommand) Run(cmd *cobra.Command, args []string) error {
 	repo, _ := cmd.Flags().GetString("repo")
 	base, _ := cmd.Flags().GetString("base")
 	mappingFile, _ := cmd.Flags().GetString("mapping-file")
+	projectFlag, _ := cmd.Flags().GetString("project")
 	titleTemplate, _ := cmd.Flags().GetString("title")
 
 	if owner == "" {
@@ -59,8 +64,11 @@ func (c *GHOpenCommand) Run(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("--repo is required")
 	}
 
-	resolved, err := resolveProject(c.fs, "")
+	resolved, err := resolveProject(c.fs, projectFlag)
 	if err != nil {
+		if projectFlag == "" {
+			return fmt.Errorf("--project flag required (or run via 'changeset each'): %w", err)
+		}
 		return fmt.Errorf("failed to resolve project: %w", err)
 	}
 	ctx, err := resolved.ToContext()
