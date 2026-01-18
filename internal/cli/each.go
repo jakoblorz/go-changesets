@@ -17,10 +17,11 @@ import (
 
 // EachCommand handles the each command
 type EachCommand struct {
-	fs      filesystem.FileSystem
-	git     git.GitClient
-	filters []string
-	command []string
+	fs           filesystem.FileSystem
+	git          git.GitClient
+	filters      []string
+	command      []string
+	fromTreeFile string
 }
 
 // NewEachCommand creates a new each command
@@ -51,12 +52,17 @@ Environment variables are also set: PROJECT, PROJECT_PATH, CURRENT_VERSION, LATE
   changeset each --filter=outdated-versions -- changeset publish --owner org --repo repo
 
   # Custom script
-  changeset each --filter=open-changesets -- bash -c 'echo "Releasing $PROJECT"'`,
+  changeset each --filter=open-changesets -- bash -c 'echo "Releasing $PROJECT"'
+
+  # Link PRs using tree file (after versioning)
+  changeset each --from-tree-file=/tmp/tree.json -- changeset gh pr link --owner org --repo repo`,
 		RunE: cmd.Run,
 	}
 
 	cobraCmd.Flags().StringSliceVar(&cmd.filters, "filter", []string{"all"},
 		"Filter projects (open-changesets, outdated-versions, has-version, no-version, unchanged, all)")
+	cobraCmd.Flags().StringVar(&cmd.fromTreeFile, "from-tree-file", "",
+		"Read projects from a tree JSON file instead of workspace filters")
 
 	return cobraCmd
 }
@@ -67,6 +73,10 @@ func (c *EachCommand) Run(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("no command specified (use -- before command)")
 	}
 	c.command = args
+
+	if c.fromTreeFile != "" {
+		return c.runFromTreeFile(cmd)
+	}
 
 	ws := workspace.New(c.fs)
 	if err := ws.Detect(); err != nil {
@@ -94,15 +104,49 @@ func (c *EachCommand) Run(cmd *cobra.Command, args []string) error {
 		return nil
 	}
 
-	fmt.Printf("Running command for %d project(s)...\n\n", len(filtered))
+	return c.executeForContexts(filtered)
+}
+
+func (c *EachCommand) runFromTreeFile(cmd *cobra.Command) error {
+	data, err := c.fs.ReadFile(c.fromTreeFile)
+	if err != nil {
+		return fmt.Errorf("failed to read tree file: %w", err)
+	}
+
+	var tree TreeOutput
+	if err := json.Unmarshal(data, &tree); err != nil {
+		return fmt.Errorf("failed to parse tree JSON: %w", err)
+	}
+
+	var contexts []*models.ProjectContext
+	for _, group := range tree.Groups {
+		for _, proj := range group.Projects {
+			ctx := &models.ProjectContext{
+				Project:          proj.Name,
+				ChangelogPreview: "",
+			}
+			contexts = append(contexts, ctx)
+		}
+	}
+
+	if len(contexts) == 0 {
+		fmt.Println("No projects found in tree file")
+		return nil
+	}
+
+	return c.executeForContexts(contexts)
+}
+
+func (c *EachCommand) executeForContexts(contexts []*models.ProjectContext) error {
+	fmt.Printf("Running command for %d project(s)...\n\n", len(contexts))
 
 	var failed []string
-	for i, ctx := range filtered {
+	for i, ctx := range contexts {
 		if i > 0 {
 			fmt.Println("\n" + strings.Repeat("-", 60) + "\n")
 		}
 
-		fmt.Printf("📦 [%d/%d] %s\n", i+1, len(filtered), ctx.Project)
+		fmt.Printf("📦 [%d/%d] %s\n", i+1, len(contexts), ctx.Project)
 
 		if err := c.executeForProject(ctx); err != nil {
 			fmt.Printf("❌ Failed: %v\n", err)
