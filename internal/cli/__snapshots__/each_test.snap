@@ -1,0 +1,58 @@
+
+[TestEach_FromTreeFile - 1]
+Running command for 2 project(s)...
+
+📦 [1/2] auth
+$PROJECT:$PROJECT_PATH
+✓ Success
+
+------------------------------------------------------------
+
+📦 [2/2] api
+$PROJECT:$PROJECT_PATH
+✓ Success
+
+---
+
+[TestEach_MultipleProjects_Snapshot - 1]
+Running command for 3 project(s)...
+
+📦 [1/3] auth
+project: $PROJECT
+✓ Success
+
+------------------------------------------------------------
+
+📦 [2/3] api
+project: $PROJECT
+✓ Success
+
+------------------------------------------------------------
+
+📦 [3/3] shared
+project: $PROJECT
+✓ Success
+
+---
+
+[TestEach_ExecuteForProject_EnvVars - 1]
+CURRENT_VERSION=1.0.0
+PROJECT_PATH=/workspace/test-project
+PROJECT=test-project
+CHANGESET_CONTEXT={
+LATEST_TAG=
+CHANGELOG_PREVIEW=## Test changes
+
+---
+
+[TestEach_NoCommand - 1]
+
+---
+
+[TestEach_InvalidTreeFile - 1]
+
+---
+
+[TestEach_InvalidTreeJSON - 1]
+
+---

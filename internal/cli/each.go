@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"strings"
@@ -22,13 +23,15 @@ type EachCommand struct {
 	filters      []string
 	command      []string
 	fromTreeFile string
+	outputWriter io.Writer
 }
 
 // NewEachCommand creates a new each command
-func NewEachCommand(fs filesystem.FileSystem, gitClient git.GitClient) *cobra.Command {
+func NewEachCommand(fs filesystem.FileSystem, gitClient git.GitClient, outputWriter io.Writer) *cobra.Command {
 	cmd := &EachCommand{
-		fs:  fs,
-		git: gitClient,
+		fs:           fs,
+		git:          gitClient,
+		outputWriter: outputWriter,
 	}
 
 	cobraCmd := &cobra.Command{
@@ -67,6 +70,13 @@ Environment variables are also set: PROJECT, PROJECT_PATH, CURRENT_VERSION, LATE
 	return cobraCmd
 }
 
+func (c *EachCommand) getOutputWriter() io.Writer {
+	if c.outputWriter == nil {
+		return os.Stdout
+	}
+	return c.outputWriter
+}
+
 // Run executes the each command
 func (c *EachCommand) Run(cmd *cobra.Command, args []string) error {
 	if len(args) == 0 {
@@ -100,7 +110,7 @@ func (c *EachCommand) Run(cmd *cobra.Command, args []string) error {
 	}
 
 	if len(filtered) == 0 {
-		fmt.Println("No projects match the specified filters")
+		fmt.Fprintln(c.getOutputWriter(), "No projects match the specified filters")
 		return nil
 	}
 
@@ -130,7 +140,7 @@ func (c *EachCommand) runFromTreeFile(cmd *cobra.Command) error {
 	}
 
 	if len(contexts) == 0 {
-		fmt.Println("No projects found in tree file")
+		fmt.Fprintln(c.getOutputWriter(), "No projects found in tree file")
 		return nil
 	}
 
@@ -138,27 +148,29 @@ func (c *EachCommand) runFromTreeFile(cmd *cobra.Command) error {
 }
 
 func (c *EachCommand) executeForContexts(contexts []*models.ProjectContext) error {
-	fmt.Printf("Running command for %d project(s)...\n\n", len(contexts))
+	out := c.getOutputWriter()
+
+	fmt.Fprintf(out, "Running command for %d project(s)...\n\n", len(contexts))
 
 	var failed []string
 	for i, ctx := range contexts {
 		if i > 0 {
-			fmt.Println("\n" + strings.Repeat("-", 60) + "\n")
+			fmt.Fprintln(out, "\n"+strings.Repeat("-", 60)+"\n")
 		}
 
-		fmt.Printf("📦 [%d/%d] %s\n", i+1, len(contexts), ctx.Project)
+		fmt.Fprintf(out, "📦 [%d/%d] %s\n", i+1, len(contexts), ctx.Project)
 
 		if err := c.executeForProject(ctx); err != nil {
-			fmt.Printf("❌ Failed: %v\n", err)
+			fmt.Fprintf(out, "❌ Failed: %v\n", err)
 			failed = append(failed, ctx.Project)
 			continue
 		}
 
-		fmt.Printf("✓ Success\n")
+		fmt.Fprintln(out, "✓ Success")
 	}
 
 	if len(failed) > 0 {
-		fmt.Printf("\n⚠️  %d project(s) failed: %s\n", len(failed), strings.Join(failed, ", "))
+		fmt.Fprintf(out, "\n⚠️  %d project(s) failed: %s\n", len(failed), strings.Join(failed, ", "))
 		return fmt.Errorf("some projects failed")
 	}
 
@@ -177,7 +189,7 @@ func (c *EachCommand) executeForProject(ctx *models.ProjectContext) error {
 
 	execCmd := exec.Command(cmdName, cmdArgs...)
 	execCmd.Stdin = bytes.NewReader(jsonData)
-	execCmd.Stdout = os.Stdout
+	execCmd.Stdout = c.getOutputWriter()
 	execCmd.Stderr = os.Stderr
 
 	execCmd.Env = append(os.Environ(),
@@ -187,6 +199,7 @@ func (c *EachCommand) executeForProject(ctx *models.ProjectContext) error {
 		fmt.Sprintf("LATEST_TAG=%s", ctx.LatestTag),
 		fmt.Sprintf("CHANGELOG_PREVIEW=%s", ctx.ChangelogPreview),
 		fmt.Sprintf("CHANGESET_CONTEXT=%s", string(jsonData)),
+		// make sure to update the each_test.go env cases if you add more variables
 	)
 
 	return execCmd.Run()
