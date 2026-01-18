@@ -6,10 +6,6 @@
 [TestGHOpen_DefaultTemplate - 2]
 This PR was automatically generated for **api**.
 
-## 📋 Changes
-
-
-
 ## 📦 What happens when you merge?
 - Version bumped to **2.0.0**
 - Changelog updated
@@ -20,10 +16,6 @@ This PR was automatically generated for **api**.
 
 [TestGHOpen_CreateNewPR - 1]
 This PR was automatically generated for **auth**.
-
-## 📋 Changes
-
-
 
 ## 📦 What happens when you merge?
 - Version bumped to **1.0.0**

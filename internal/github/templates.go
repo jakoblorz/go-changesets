@@ -23,10 +23,12 @@ type RelatedPRInfo struct {
 }
 
 const DefaultBodyTemplate = `This PR was automatically generated for **{{.Project}}**.
+{{- if .ChangelogPreview}}
 
 ## 📋 Changes
 
 {{.ChangelogPreview}}
+{{- end}}
 {{- if .RelatedPRs}}
 
 ## 🔗 Related Release PRs
