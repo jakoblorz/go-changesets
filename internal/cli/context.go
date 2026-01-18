@@ -30,42 +30,27 @@ type resolvedProject struct {
 // ToContext converts the resolved project to a ProjectContext for use in commands
 // that need full project context (like gh pr commands).
 func (r *resolvedProject) ToContext() *models.ProjectContext {
-	ctx := &models.ProjectContext{
+	builder := newProjectContextBuilder(r.Workspace.FileSystem(), nil)
+	contexts, err := builder.Build(r.Workspace)
+	if err != nil {
+		return &models.ProjectContext{
+			Project:     r.Name,
+			ProjectPath: r.Project.RootPath,
+			ModulePath:  r.Project.ModulePath,
+		}
+	}
+
+	for _, ctx := range contexts {
+		if ctx.Project == r.Name {
+			return ctx
+		}
+	}
+
+	return &models.ProjectContext{
 		Project:     r.Name,
 		ProjectPath: r.Project.RootPath,
 		ModulePath:  r.Project.ModulePath,
 	}
-
-	versionPath := filepath.Join(r.Project.RootPath, "version.txt")
-	if data, err := r.Workspace.FileSystem().ReadFile(versionPath); err == nil {
-		ctx.CurrentVersion = strings.TrimSpace(string(data))
-	}
-
-	csManager := changeset.NewManager(r.Workspace.FileSystem(), r.Workspace.ChangesetDir())
-	allChangesets, err := csManager.ReadAll()
-	if err == nil {
-		projectChangesets := changeset.FilterByProject(allChangesets, r.Name)
-		ctx.HasChangesets = len(projectChangesets) > 0
-
-		for _, cs := range projectChangesets {
-			bump, _ := cs.GetBumpForProject(r.Name)
-			ctx.Changesets = append(ctx.Changesets, models.ChangesetSummary{
-				ID:       cs.ID,
-				BumpType: bump,
-				Message:  cs.Message,
-			})
-		}
-
-		if len(projectChangesets) > 0 {
-			changelog := changelog.NewChangelog(r.Workspace.FileSystem())
-			preview, err := changelog.FormatEntry(projectChangesets, r.Name, r.Project.RootPath)
-			if err == nil {
-				ctx.ChangelogPreview = preview
-			}
-		}
-	}
-
-	return ctx
 }
 
 func resolveProjectName(projectFlag string) (string, bool, error) {
