@@ -50,12 +50,13 @@ func (c *GHCloseCommand) Run(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("--repo is required")
 	}
 
-	projectName, _, err := resolveProjectName("")
+	resolved, err := resolveProject(c.fs, "")
 	if err != nil {
 		return fmt.Errorf("failed to resolve project: %w", err)
 	}
+	ctx := resolved.ToContext()
 
-	branchName := fmt.Sprintf("changeset-release/%s", projectName)
+	branchName := fmt.Sprintf("changeset-release/%s", ctx.Project)
 
 	pr, err := c.ghClient.GetPullRequestByHead(cmd.Context(), owner, repo, branchName)
 	if err != nil {
@@ -63,25 +64,25 @@ func (c *GHCloseCommand) Run(cmd *cobra.Command, args []string) error {
 	}
 
 	if pr == nil {
-		fmt.Printf("No PR found for %s (branch: %s)\n", projectName, branchName)
+		fmt.Printf("No PR found for %s (branch: %s)\n", ctx.Project, branchName)
 		return nil
 	}
 
 	if pr.State == "closed" {
-		fmt.Printf("PR #%d for %s is already closed\n", pr.Number, projectName)
+		fmt.Printf("PR #%d for %s is already closed\n", pr.Number, ctx.Project)
 		return nil
 	}
 
 	comment := customComment
 	if comment == "" {
-		comment = fmt.Sprintf("✅ This release PR is no longer needed (no changesets remaining for %s). If new changesets are added, a new PR will be created automatically.", projectName)
+		comment = fmt.Sprintf("✅ This release PR is no longer needed (no changesets remaining for %s). If new changesets are added, a new PR will be created automatically.", ctx.Project)
 	}
 
 	if err := c.ghClient.ClosePullRequest(cmd.Context(), owner, repo, pr.Number); err != nil {
 		return fmt.Errorf("failed to close PR: %w", err)
 	}
 
-	fmt.Printf("✓ Closed PR #%d for %s\n", pr.Number, projectName)
+	fmt.Printf("✓ Closed PR #%d for %s\n", pr.Number, ctx.Project)
 
 	if err := c.ghClient.DeleteBranch(cmd.Context(), owner, repo, branchName); err != nil {
 		fmt.Printf("⚠️  Failed to delete branch %s: %v\n", branchName, err)

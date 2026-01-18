@@ -8,6 +8,7 @@ import (
 
 	"github.com/jakoblorz/go-changesets/internal/filesystem"
 	"github.com/jakoblorz/go-changesets/internal/github"
+	"github.com/jakoblorz/go-changesets/internal/workspace"
 	"github.com/spf13/cobra"
 	"github.com/stretchr/testify/require"
 )
@@ -33,7 +34,11 @@ func newGHCloseCommandWithParent(fs filesystem.FileSystem, ghClient github.GitHu
 }
 
 func TestGHClose_FindsAndClosesPR(t *testing.T) {
-	fs := filesystem.NewMockFileSystem()
+	ws, fs := buildWorkspaceForGH(t, func(wb *workspace.WorkspaceBuilder) {
+		wb.AddProject("auth", "packages/auth", "github.com/test/auth")
+		wb.SetVersion("auth", "1.0.0")
+	})
+
 	ghClient := github.NewMockClient()
 
 	ghClient.AddBranch("testorg", "testrepo", "changeset-release/auth")
@@ -48,7 +53,7 @@ func TestGHClose_FindsAndClosesPR(t *testing.T) {
 	})
 
 	os.Setenv("PROJECT", "auth")
-	os.Setenv("PROJECT_PATH", "/workspace/auth")
+	os.Setenv("PROJECT_PATH", ws.Projects[0].RootPath)
 	defer func() {
 		os.Unsetenv("PROJECT")
 		os.Unsetenv("PROJECT_PATH")
@@ -67,11 +72,15 @@ func TestGHClose_FindsAndClosesPR(t *testing.T) {
 }
 
 func TestGHClose_NoPRExists(t *testing.T) {
-	fs := filesystem.NewMockFileSystem()
+	ws, fs := buildWorkspaceForGH(t, func(wb *workspace.WorkspaceBuilder) {
+		wb.AddProject("auth", "packages/auth", "github.com/test/auth")
+		wb.SetVersion("auth", "1.0.0")
+	})
+
 	ghClient := github.NewMockClient()
 
 	os.Setenv("PROJECT", "auth")
-	os.Setenv("PROJECT_PATH", "/workspace/auth")
+	os.Setenv("PROJECT_PATH", ws.Projects[0].RootPath)
 	defer func() {
 		os.Unsetenv("PROJECT")
 		os.Unsetenv("PROJECT_PATH")
@@ -85,7 +94,11 @@ func TestGHClose_NoPRExists(t *testing.T) {
 }
 
 func TestGHClose_AlreadyClosed(t *testing.T) {
-	fs := filesystem.NewMockFileSystem()
+	ws, fs := buildWorkspaceForGH(t, func(wb *workspace.WorkspaceBuilder) {
+		wb.AddProject("auth", "packages/auth", "github.com/test/auth")
+		wb.SetVersion("auth", "1.0.0")
+	})
+
 	ghClient := github.NewMockClient()
 
 	ghClient.AddPullRequestByHead("testorg", "testrepo", "changeset-release/auth", &github.PullRequest{
@@ -99,7 +112,7 @@ func TestGHClose_AlreadyClosed(t *testing.T) {
 	})
 
 	os.Setenv("PROJECT", "auth")
-	os.Setenv("PROJECT_PATH", "/workspace/auth")
+	os.Setenv("PROJECT_PATH", ws.Projects[0].RootPath)
 	defer func() {
 		os.Unsetenv("PROJECT")
 		os.Unsetenv("PROJECT_PATH")
@@ -113,7 +126,11 @@ func TestGHClose_AlreadyClosed(t *testing.T) {
 }
 
 func TestGHClose_CustomComment(t *testing.T) {
-	fs := filesystem.NewMockFileSystem()
+	ws, fs := buildWorkspaceForGH(t, func(wb *workspace.WorkspaceBuilder) {
+		wb.AddProject("auth", "packages/auth", "github.com/test/auth")
+		wb.SetVersion("auth", "1.0.0")
+	})
+
 	ghClient := github.NewMockClient()
 
 	existingPR := &github.PullRequest{
@@ -129,7 +146,7 @@ func TestGHClose_CustomComment(t *testing.T) {
 	ghClient.AddBranch("testorg", "testrepo", "changeset-release/auth")
 
 	os.Setenv("PROJECT", "auth")
-	os.Setenv("PROJECT_PATH", "/workspace/auth")
+	os.Setenv("PROJECT_PATH", ws.Projects[0].RootPath)
 	defer func() {
 		os.Unsetenv("PROJECT")
 		os.Unsetenv("PROJECT_PATH")
@@ -143,7 +160,11 @@ func TestGHClose_CustomComment(t *testing.T) {
 }
 
 func TestGHClose_ExtractsProjectName(t *testing.T) {
-	fs := filesystem.NewMockFileSystem()
+	ws, fs := buildWorkspaceForGH(t, func(wb *workspace.WorkspaceBuilder) {
+		wb.AddProject("my-service", "packages/my-service", "github.com/test/my-service")
+		wb.SetVersion("my-service", "1.0.0")
+	})
+
 	ghClient := github.NewMockClient()
 
 	existingPR := &github.PullRequest{
@@ -158,7 +179,7 @@ func TestGHClose_ExtractsProjectName(t *testing.T) {
 	ghClient.AddPullRequestByHead("testorg", "testrepo", "changeset-release/my-service", existingPR)
 	ghClient.AddBranch("testorg", "testrepo", "changeset-release/my-service")
 
-	os.Setenv("PROJECT_PATH", "/workspace/my-service")
+	os.Setenv("PROJECT_PATH", ws.Projects[0].RootPath)
 	defer func() {
 		os.Unsetenv("PROJECT_PATH")
 	}()
@@ -188,7 +209,11 @@ func TestGHClose_MissingProjectContext(t *testing.T) {
 }
 
 func TestGHClose_BranchDeletionFails(t *testing.T) {
-	fs := filesystem.NewMockFileSystem()
+	ws, fs := buildWorkspaceForGH(t, func(wb *workspace.WorkspaceBuilder) {
+		wb.AddProject("auth", "packages/auth", "github.com/test/auth")
+		wb.SetVersion("auth", "1.0.0")
+	})
+
 	ghClient := github.NewMockClient()
 
 	existingPR := &github.PullRequest{
@@ -205,7 +230,7 @@ func TestGHClose_BranchDeletionFails(t *testing.T) {
 	ghClient.DeleteBranchError = errors.New("branch not found")
 
 	os.Setenv("PROJECT", "auth")
-	os.Setenv("PROJECT_PATH", "/workspace/auth")
+	os.Setenv("PROJECT_PATH", ws.Projects[0].RootPath)
 	defer func() {
 		os.Unsetenv("PROJECT")
 		os.Unsetenv("PROJECT_PATH")
