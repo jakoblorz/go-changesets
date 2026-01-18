@@ -19,7 +19,6 @@ func TestPRMapping_ReadWrite(t *testing.T) {
 	err := mapping.Write(path)
 	require.NoError(t, err)
 
-	// Read it back
 	readMapping, err := ReadPRMapping(path)
 	require.NoError(t, err)
 	require.NotNil(t, readMapping)
@@ -75,7 +74,6 @@ func TestTemplateData(t *testing.T) {
 		Version:          "1.2.0",
 		CurrentVersion:   "1.1.0",
 		ChangelogPreview: "## Minor Changes\n- Add OAuth2 support",
-		CommitSHA:        "abc123def456",
 		RelatedPRs: []RelatedPRInfo{
 			{Number: 123, Project: "auth", Version: "1.2.0"},
 			{Number: 124, Project: "api", Version: "2.1.0"},
@@ -101,49 +99,40 @@ func TestExecuteDefaultTemplate(t *testing.T) {
 	require.NoError(t, err)
 	require.Contains(t, body, "auth")
 	require.Contains(t, body, "1.2.0")
-	require.Contains(t, body, "RELATED_PRS_PLACEHOLDER")
+	require.NotContains(t, body, "RELATED_PRS_PLACEHOLDER")
 }
 
-func TestBuildRelatedPRsSection(t *testing.T) {
-	relatedPRs := []RelatedPRInfo{
-		{Number: 123, Project: "auth", Version: "1.2.0"},
-		{Number: 124, Project: "api", Version: "2.1.0"},
-		{Number: 125, Project: "shared", Version: "0.5.0"},
+func TestExecuteDefaultTemplate_WithRelatedPRs(t *testing.T) {
+	data := TemplateData{
+		Project:          "auth",
+		Version:          "1.2.0",
+		ChangelogPreview: "## Minor Changes\n- Add OAuth2 support",
+		RelatedPRs: []RelatedPRInfo{
+			{Number: 123, Project: "auth", Version: "1.2.0"},
+			{Number: 124, Project: "api", Version: "2.1.0"},
+		},
 	}
 
-	section := BuildRelatedPRsSection("abc123def456", relatedPRs, "auth")
-	require.Contains(t, section, "## 🔗 Related Release PRs")
-	require.Contains(t, section, "abc123def456")
-	require.Contains(t, section, "#123 Release auth v1.2.0")
-	require.Contains(t, section, "← **You are here**")
-	require.Contains(t, section, "#124 Release api v2.1.0")
-	require.Contains(t, section, "#125 Release shared v0.5.0")
+	body, err := ExecuteDefaultTemplate("body", data)
+	require.NoError(t, err)
+	require.Contains(t, body, "## 🔗 Related Release PRs")
+	require.Contains(t, body, "#123 Release auth v1.2.0")
+	require.Contains(t, body, "#124 Release api v2.1.0")
 }
 
-func TestBuildRelatedPRsSection_Single(t *testing.T) {
-	relatedPRs := []RelatedPRInfo{
-		{Number: 123, Project: "auth", Version: "1.2.0"},
+func TestExecuteDefaultTemplate_NoRelatedPRs(t *testing.T) {
+	data := TemplateData{
+		Project:          "auth",
+		Version:          "1.2.0",
+		ChangelogPreview: "## Minor Changes\n- Add OAuth2 support",
+		RelatedPRs:       []RelatedPRInfo{},
 	}
 
-	section := BuildRelatedPRsSection("abc123def456", relatedPRs, "auth")
-	require.Empty(t, section)
-}
-
-func TestReplaceRelatedPRsPlaceholder(t *testing.T) {
-	body := "This is a test\n\n<!-- RELATED_PRS_PLACEHOLDER -->\n\nFooter"
-	replacement := "## Related PRs\n- #123"
-
-	result := ReplaceRelatedPRsPlaceholder(body, replacement)
-	require.Contains(t, result, "## Related PRs")
-	require.Contains(t, result, "#123")
-}
-
-func TestReplaceRelatedPRsPlaceholder_NoPlaceholder(t *testing.T) {
-	body := "This is a test without placeholder"
-	replacement := "## Related PRs\n- #123"
-
-	result := ReplaceRelatedPRsPlaceholder(body, replacement)
-	require.Equal(t, body+"\n\n"+replacement, result)
+	body, err := ExecuteDefaultTemplate("body", data)
+	require.NoError(t, err)
+	require.NotContains(t, body, "## 🔗 Related Release PRs")
+	require.Contains(t, body, "## 📋 Changes")
+	require.Contains(t, body, "Add OAuth2 support")
 }
 
 func TestParseTemplateFile(t *testing.T) {

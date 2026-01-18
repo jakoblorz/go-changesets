@@ -1,42 +1,72 @@
 
 [TestGHLink_LinksRelatedPRs - 1]
-Auth release
+This PR was automatically generated for **auth**.
+
+## 📋 Changes
+
+## Minor Changes
+- Auth feature
 
 ## 🔗 Related Release PRs
 
-This release is part of a coordinated change from commit [`abc123def456`]:
-- #1 Release auth v1.0.0 
-- #2 Release api v1.0.0 
-- #3 Release shared v1.0.0 
+This release is part of a coordinated change:
+- #1 Release auth v1.0.0
+- #2 Release api v1.0.0
+- #3 Release shared v1.0.0
 
-**Tip:** These changes were made together. Consider reviewing and merging all related PRs together.
+
+## 📦 What happens when you merge?
+- Version bumped to **1.0.0**
+- Changelog updated
+- Changesets consumed
+- Publish workflow creates GitHub release: `auth@1.0.0`
 
 ---
 
 [TestGHLink_LinksRelatedPRs - 2]
-API release
+This PR was automatically generated for **api**.
+
+## 📋 Changes
+
+## Minor Changes
+- API feature
 
 ## 🔗 Related Release PRs
 
-This release is part of a coordinated change from commit [`abc123def456`]:
-- #1 Release auth v1.0.0 
-- #2 Release api v1.0.0 
-- #3 Release shared v1.0.0 
+This release is part of a coordinated change:
+- #1 Release auth v1.0.0
+- #2 Release api v1.0.0
+- #3 Release shared v1.0.0
 
-**Tip:** These changes were made together. Consider reviewing and merging all related PRs together.
+
+## 📦 What happens when you merge?
+- Version bumped to **1.0.0**
+- Changelog updated
+- Changesets consumed
+- Publish workflow creates GitHub release: `api@1.0.0`
 
 ---
 
 [TestGHLink_LinksRelatedPRs - 3]
-Shared release
+This PR was automatically generated for **shared**.
+
+## 📋 Changes
+
+## Minor Changes
+- Shared feature
 
 ## 🔗 Related Release PRs
 
-This release is part of a coordinated change from commit [`abc123def456`]:
-- #1 Release auth v1.0.0 
-- #2 Release api v1.0.0 
-- #3 Release shared v1.0.0 
+This release is part of a coordinated change:
+- #1 Release auth v1.0.0
+- #2 Release api v1.0.0
+- #3 Release shared v1.0.0
 
-**Tip:** These changes were made together. Consider reviewing and merging all related PRs together.
+
+## 📦 What happens when you merge?
+- Version bumped to **1.0.0**
+- Changelog updated
+- Changesets consumed
+- Publish workflow creates GitHub release: `shared@1.0.0`
 
 ---

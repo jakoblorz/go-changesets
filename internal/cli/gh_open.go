@@ -122,7 +122,7 @@ func (c *GHOpenCommand) Run(cmd *cobra.Command, args []string) error {
 		fmt.Printf("✓ Created PR #%d for %s\n", pr.Number, ctx.Project)
 	}
 
-	if err := c.updateMappingFile(mappingFile, ctx.Project, pr.Number, branchName, version); err != nil {
+	if err := c.updateMappingFile(mappingFile, ctx.Project, pr.Number, branchName, version, ctx.ChangelogPreview); err != nil {
 		return fmt.Errorf("failed to update mapping file: %w", err)
 	}
 
@@ -174,16 +174,17 @@ func (c *GHOpenCommand) buildTitle(templateStr, project, version string) (string
 	return github.ExecuteDefaultTemplate("title", data)
 }
 
-func (c *GHOpenCommand) updateMappingFile(path, project string, prNumber int, branch, version string) error {
+func (c *GHOpenCommand) updateMappingFile(path, project string, prNumber int, branch, version, changelogPreview string) error {
 	mapping, err := github.ReadPRMapping(path)
 	if err != nil {
 		mapping = github.NewPRMapping()
 	}
 
 	mapping.Set(project, github.PREntry{
-		PRNumber: prNumber,
-		Branch:   branch,
-		Version:  version,
+		PRNumber:         prNumber,
+		Branch:           branch,
+		Version:          version,
+		ChangelogPreview: changelogPreview,
 	})
 
 	return mapping.Write(path)

@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"path/filepath"
 
 	"github.com/jakoblorz/go-changesets/internal/filesystem"
 	"github.com/jakoblorz/go-changesets/internal/github"
@@ -91,8 +92,6 @@ func (c *GHLinkCommand) Run(cmd *cobra.Command, args []string) error {
 			continue
 		}
 
-		section := github.BuildRelatedPRsSection(group.Commit, relatedPRs, "")
-
 		for _, relatedPR := range relatedPRs {
 			entry, ok := mapping.Get(relatedPR.Project)
 			if !ok {
@@ -105,7 +104,15 @@ func (c *GHLinkCommand) Run(cmd *cobra.Command, args []string) error {
 				continue
 			}
 
-			newBody := github.ReplaceRelatedPRsPlaceholder(pr.Body, section)
+			data := github.TemplateData{
+				Project:          relatedPR.Project,
+				Version:          entry.Version,
+				CurrentVersion:   entry.Version,
+				ChangelogPreview: entry.ChangelogPreview,
+				RelatedPRs:       relatedPRs,
+			}
+
+			newBody := c.renderBody(data)
 
 			_, err = c.ghClient.UpdatePullRequest(cmd.Context(), owner, repo, pr.Number, &github.UpdatePullRequestRequest{
 				Title: pr.Title,
@@ -128,4 +135,22 @@ func (c *GHLinkCommand) Run(cmd *cobra.Command, args []string) error {
 	}
 
 	return nil
+}
+
+func (c *GHLinkCommand) renderBody(data github.TemplateData) string {
+	templatePath := filepath.Join(".changeset", "pr-description.tmpl")
+
+	if !c.fs.Exists(templatePath) {
+		body, _ := github.ExecuteDefaultTemplate("body", data)
+		return body
+	}
+
+	tmpl, err := github.ParseTemplateFile(templatePath)
+	if err != nil {
+		body, _ := github.ExecuteDefaultTemplate("body", data)
+		return body
+	}
+
+	body, _ := github.ExecuteTemplate(tmpl, "pr-body", data)
+	return body
 }

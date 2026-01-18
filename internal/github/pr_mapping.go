@@ -13,9 +13,10 @@ type PRMapping struct {
 }
 
 type PREntry struct {
-	PRNumber int    `json:"prNumber"`
-	Branch   string `json:"branch"`
-	Version  string `json:"version"`
+	PRNumber         int    `json:"prNumber"`
+	Branch           string `json:"branch"`
+	Version          string `json:"version"`
+	ChangelogPreview string `json:"changelogPreview"`
 }
 
 func NewPRMapping() *PRMapping {

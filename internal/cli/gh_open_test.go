@@ -75,9 +75,9 @@ func TestGHOpen_CreateNewPR(t *testing.T) {
 
 	pr := prs[0]
 	require.Equal(t, "🚀 Release auth v1.0.0", pr.Title)
-	require.Contains(t, pr.Body, "<!-- RELATED_PRS_PLACEHOLDER -->")
 	require.Equal(t, "changeset-release/auth", pr.Head)
 	require.Equal(t, "main", pr.Base)
+	snaps.MatchSnapshot(t, pr.Body)
 }
 
 func TestGHOpen_UpdateExistingPR(t *testing.T) {
