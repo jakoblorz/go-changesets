@@ -7,6 +7,14 @@ description: Automate version PRs and GitHub releases.
 
 Automate your entire release workflow with GitHub Actions. This guide shows you how to set up continuous delivery for your Go monorepo using `go-changeset`.
 
+The CLI includes built-in GitHub commands that handle PR creation, linking, and cleanup:
+
+- `changeset gh pr open` - Create or update release PRs
+- `changeset gh pr link` - Link related release PRs together
+- `changeset gh pr close` - Close obsolete release PRs
+
+These commands replace complex shell scripts with a simple, declarative workflow.
+
 ## Overview
 
 The automated workflow consists of two main jobs:
@@ -120,23 +128,24 @@ on:
   pull_request:
     branches: [main]
 
-# Permissions needed for creating PRs and releases
 permissions:
   contents: write
   pull-requests: write
 
+concurrency:
+  group: changeset-${{ github.ref }}
+  cancel-in-progress: false
+
 jobs:
-  # Job 1: Create per-project version PRs
   version-prs:
     name: Create Per-Project PRs
     runs-on: ubuntu-latest
-    # Only run on main branch pushes
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0  # Need full history for git operations
+          fetch-depth: 0
 
       - name: Setup Go
         uses: actions/setup-go@v4
@@ -151,80 +160,72 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
+      - name: Analyze changeset relationships
+        run: |
+          changeset tree --filter open-changesets --format json > /tmp/tree.json
+          changeset tree --filter open-changesets
+
       - name: Create per-project PRs
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           changeset each --filter open-changesets -- sh -c '
             set -e
-            
             BRANCH="changeset-release/$PROJECT"
-            
-            echo "📦 Creating PR for $PROJECT..."
-            
             git checkout -b "$BRANCH" 2>/dev/null || git checkout "$BRANCH"
-            
-            changeset version
-            
+            changeset version \
+              --owner ${{ github.repository_owner }} \
+              --repo ${{ github.event.repository.name }}
             if git diff --quiet && git diff --cached --quiet; then
               echo "⚠️  No changes to commit for $PROJECT"
               git checkout main
               exit 0
             fi
-            
-            VERSION=$(cat "$PROJECT_PATH/version.txt" 2>/dev/null || echo "unknown")
-            
             git add .
-            git commit -m "chore: version $PROJECT to $VERSION"
+            git commit -m "chore: version $PROJECT to $(cat $PROJECT_PATH/version.txt)"
             git push -u origin "$BRANCH" --force
-            
-            PR_BODY="This PR was automatically generated for **$PROJECT**.
 
-          ## 📋 Changes
+            # Create/update PR with built-in command
+            changeset gh pr open \
+              --owner ${{ github.repository_owner }} \
+              --repo ${{ github.event.repository.name }}
 
-          $CHANGELOG_PREVIEW
-
-          ## 📦 What happens when you merge?
-          - Version bumped to **$VERSION**
-          - Changelog updated
-          - Changesets consumed
-          - Publish workflow creates GitHub release: \`$PROJECT@v$VERSION\`"
-            
-            gh pr create \
-              --title "🚀 Release $PROJECT v$VERSION" \
-              --body "$PR_BODY" \
-              --head "$BRANCH" \
-              --base main \
-              --label "release" \
-              --label "automated" \
-              || gh pr edit "$BRANCH" --title "🚀 Release $PROJECT v$VERSION"
-            
             git checkout main
             git reset --hard origin/main
             git clean -fd
-            
-            echo "✅ PR created/updated for $PROJECT"
           '
 
-      - name: Summary
+      - name: Link related PRs
+        if: success()
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          echo "## 🎉 Release PRs Created" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "Per-project release PRs have been created." >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "View pull requests: https://github.com/${{ github.repository }}/pulls" >> $GITHUB_STEP_SUMMARY
+          changeset gh pr link \
+            --owner ${{ github.repository_owner }} \
+            --repo ${{ github.event.repository.name }} \
+            --tree-file /tmp/tree.json
 
-  # Job 2: Publish releases when version PRs are merged
+      - name: Close obsolete release PRs
+        if: always()
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          changeset each --filter unchanged -- sh -c '
+            changeset gh pr close \
+              --owner ${{ github.repository_owner }} \
+              --repo ${{ github.event.repository.name }}
+          ' || true
+
   publish:
     name: Publish Releases
     runs-on: ubuntu-latest
-    # Only run on main branch pushes
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: version-prs
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0  # Need full history for git tags
+          fetch-depth: 0
 
       - name: Setup Go
         uses: actions/setup-go@v4
@@ -242,7 +243,6 @@ jobs:
       - name: Check for outdated versions
         id: check_publish
         run: |
-          # Check if any projects have version.txt > git tag
           if changeset each --filter outdated-versions -- echo "found" 2>/dev/null | grep -q "found"; then
             echo "has_outdated=true" >> $GITHUB_OUTPUT
           else
@@ -252,29 +252,19 @@ jobs:
       - name: Publish releases
         if: steps.check_publish.outputs.has_outdated == 'true'
         run: |
-          # Publish all projects where version.txt > git tag
           changeset each --filter outdated-versions -- \
             changeset publish \
               --owner ${{ github.repository_owner }} \
               --repo ${{ github.event.repository.name }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Summary
-        if: steps.check_publish.outputs.has_outdated == 'true'
-        run: |
-          echo "## 🎉 Releases Published" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "GitHub releases have been created." >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "View releases: https://github.com/${{ github.repository }}/releases" >> $GITHUB_STEP_SUMMARY
 ```
 
 ## How the Workflow Works
 
-The workflow consists of **three steps** when using changeset relationship tracking:
+The workflow uses three built-in GitHub commands that handle all PR operations:
 
-### Step 1: Analyze Relationships (Optional but Recommended)
+### Step 1: Analyze Relationships
 
 Before versioning deletes changeset files, capture which changesets are related:
 
@@ -285,9 +275,9 @@ Before versioning deletes changeset files, capture which changesets are related:
     changeset tree --filter open-changesets  # Show in logs
 ```
 
-This saves relationship data for Step 3 (PR linking). Learn more about [changeset groups](./changeset-groups.mdx).
+This saves relationship data for Step 2 (PR linking). Learn more about [changeset groups](./changeset-groups.mdx).
 
-### Step 2: Version PRs (Per-Project)
+### Step 2: Create Version PRs
 
 This step creates **separate PRs for each project** with changesets:
 
@@ -300,72 +290,63 @@ changeset each --filter open-changesets -- sh -c '
   # 2. Run version command (updates files)
   changeset version
   
-  # 3. Capture new version AFTER version command
-  VERSION=$(cat "$PROJECT_PATH/version.txt")
-  
-  # 4. Commit and push
+  # 3. Commit and push
   git add .
-  git commit -m "chore: version $PROJECT to $VERSION"
+  git commit -m "chore: version $PROJECT to $(cat $PROJECT_PATH/version.txt)"
   git push -u origin "$BRANCH" --force
   
-  # 5. Create PR with changelog preview
-  gh pr create \
-    --title "Release $PROJECT v$VERSION" \
-    --body "## Changes\n\n$CHANGELOG_PREVIEW" \
-    --head "$BRANCH"
+  # 4. Create PR with built-in command (handles template, mapping, everything)
+  changeset gh pr open \
+    --owner $OWNER \
+    --repo $REPO
   
-  # 6. Reset for next project (isolation!)
+  # 5. Reset for next project (isolation!)
   git checkout main
   git reset --hard origin/main
   git clean -fd
 '
 ```
 
-**Key Points:**
+**What `changeset gh pr open` does:**
+- Reads current version from `version.txt`
+- Renders PR body using template (`.changeset/pr-description.tmpl` or default)
+- Creates new PR or updates existing one
+- Stores PR mapping for later linking
 
-**Branch Creation FIRST:**
-- Must create branch before making changes
-- Branch name: `changeset-release/{project}`
-
-**VERSION Captured AFTER:**
-- `changeset version` updates version.txt
-- Then we read the NEW version
-- Critical for correct commit messages and PR titles
-
-**Git Reset for Isolation:**
-- Each iteration starts from clean main
-- Changes from one project don't leak into another
-- Enables per-project PRs
-
-**Changelog Preview:**
-- `$CHANGELOG_PREVIEW` automatically set by `changeset each`
-- Contains formatted changelog content
-- No parsing needed - ready for PR body
-
-**PR Number Tracking:**
-- Save PR numbers to `/tmp/pr-mapping.txt`
-- Format: `project=PR_NUMBER`
-- Used in Step 3 for linking related PRs
-
-### Step 3: Link Related PRs (Optional)
+### Step 3: Link Related PRs
 
 After PRs are created, link related ones together:
 
 ```bash
-# Parse tree and PR mapping
-jq -c '.groups[]' /tmp/tree.json | while read -r group; do
-  # For each group with multiple projects:
-  # - Get all PR numbers from mapping file
-  # - Build relationship section
-  # - Update each PR body with links to related PRs
-done
+changeset gh pr link \
+  --owner $OWNER \
+  --repo $REPO \
+  --tree-file /tmp/tree.json
 ```
 
-This adds a "Related Release PRs" section to each PR showing which other PRs are part of the same feature.
+This uses the tree data to:
+- Find related projects in each changeset group
+- Re-render each PR body with the related PRs list
+- Update all PRs in the group
 
-See the complete implementation in [kitchensink/.github/workflows/changeset.yml](../kitchensink/.github/workflows/changeset.yml).
+### Step 4: Close Obsolete PRs
 
-### Step 4: Publish Releases
+For projects with no remaining changesets, close their release PRs:
+
+```bash
+changeset each --filter unchanged -- sh -c '
+  changeset gh pr close \
+    --owner $OWNER \
+    --repo $REPO
+'
+```
+
+This:
+- Checks if a release PR exists for the project
+- Closes the PR with a comment explaining why
+- Deletes the release branch
+
+### Step 5: Publish Releases
 
 This job publishes GitHub releases for projects that have been versioned:
 
@@ -386,9 +367,145 @@ changeset each --filter outdated-versions -- \
 - Creates GitHub release with changelog from CHANGELOG.md
 - Attaches changelog notes to release
 
+## GitHub PR Commands Reference
+
+The `changeset gh pr` subcommands handle all release PR operations:
+
+### `changeset gh pr open`
+
+Creates or updates a release PR for a project.
+
+```bash
+changeset gh pr open \
+  --owner $OWNER \
+  --repo $REPO \
+  [--project $PROJECT]
+```
+
+**Flags:**
+- `--owner` (required): GitHub repository owner
+- `--repo` (required): GitHub repository name
+- `--project`: Project name (auto-detected from env when run via `changeset each`)
+- `--title`: PR title template (default: `🚀 Release {{.Project}} v{{.Version}}`)
+- `--base`: Base branch (default: `main`)
+- `--labels`: Comma-separated labels (default: `release,automated`)
+- `--mapping-file`: Path to PR mapping file (default: `/tmp/pr-mapping.json`)
+
+**Behavior:**
+1. Reads current version from `version.txt`
+2. Renders PR body using template (`.changeset/pr-description.tmpl` or default)
+3. Creates new PR or updates existing one
+4. Stores PR info in mapping file for linking
+
+**Example:**
+```bash
+# In a changeset each context (auto-detects project)
+changeset gh pr open --owner myorg --repo myrepo
+
+# Explicit project
+changeset gh pr open --owner myorg --repo myrepo --project auth
+```
+
+### `changeset gh pr link`
+
+Links related release PRs together using changeset tree data.
+
+```bash
+changeset gh pr link \
+  --owner $OWNER \
+  --repo $REPO \
+  --tree-file /tmp/tree.json \
+  [--mapping-file /tmp/pr-mapping.json]
+```
+
+**Flags:**
+- `--owner` (required): GitHub repository owner
+- `--repo` (required): GitHub repository name
+- `--tree-file` (required): Path to tree JSON from `changeset tree --format json`
+- `--mapping-file`: Path to PR mapping file (default: `/tmp/pr-mapping.json`)
+
+**Behavior:**
+1. Reads tree data to find related projects
+2. Reads mapping file to get PR numbers
+3. Re-renders each PR body with related PRs list
+4. Updates all PRs in related groups
+
+**Example:**
+```bash
+changeset gh pr link \
+  --owner myorg \
+  --repo myrepo \
+  --tree-file /tmp/tree.json
+```
+
+### `changeset gh pr close`
+
+Closes obsolete release PRs and deletes release branches.
+
+```bash
+changeset gh pr close \
+  --owner $OWNER \
+  --repo $REPO \
+  [--project $PROJECT] \
+  [--comment "Custom close message"]
+```
+
+**Flags:**
+- `--owner` (required): GitHub repository owner
+- `--repo` (required): GitHub repository name
+- `--project`: Project name (auto-detected from env when run via `changeset each`)
+- `--comment`: Custom close comment
+
+**Behavior:**
+1. Checks if a release PR exists for the project
+2. Closes the PR with an explanatory comment
+3. Deletes the release branch
+
+**Example:**
+```bash
+# In a changeset each context
+changeset gh pr close --owner myorg --repo myrepo
+
+# With custom comment
+changeset gh pr close --owner myorg --repo myrepo --comment "No longer needed"
+```
+
+## Custom PR Templates
+
+All three commands use templates for PR content. Create `.changeset/pr-description.tmpl` to customize:
+
+```gotemplate
+This PR was automatically generated for **{{.Project}}**.
+
+## 📋 Changes
+
+{{.ChangelogPreview}}
+
+{{if .RelatedPRs}}
+## 🔗 Related Release PRs
+
+This release is part of a coordinated change:
+{{range .RelatedPRs}}- #{{.Number}} Release {{.Project}} v{{.Version}}{{end}}
+{{end}}
+
+## 📦 What happens when you merge?
+- Version bumped to **{{.Version}}**
+- Changelog updated
+- Changesets consumed
+- Publish workflow creates GitHub release: `{{.Project}}@{{.Version}}`
+```
+
+**Template variables:**
+- `{{.Project}}`: Project name
+- `{{.Version}}`: New version
+- `{{.CurrentVersion}}`: Current version before bump
+- `{{.ChangelogPreview}}`: Formatted changelog preview
+- `{{.RelatedPRs}}`: List of related PRs (for `gh pr link`)
+- `{{.CommitSHA}}`: Commit that triggered the release
+
 ## Per-Project PRs vs Single PR
 
-The workflow above creates **separate PRs for each project**. 
+The workflow above creates **separate PRs for each project**.
 
 ### Benefits of Per-Project PRs
 

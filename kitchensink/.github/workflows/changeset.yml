@@ -59,82 +59,41 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          # Initialize PR mapping file
-          > /tmp/pr-mapping.txt
-
           changeset each --filter open-changesets -- sh -c '
             set -e
-            
+
             BRANCH="changeset-release/$PROJECT"
-            
+
             echo "📦 Creating PR for $PROJECT..."
-            
+
             git checkout -b "$BRANCH" 2>/dev/null || git checkout "$BRANCH"
-            
+
             changeset version \
               --owner ${{ github.repository_owner }} \
               --repo ${{ github.event.repository.name }}
-            
+
             if git diff --quiet && git diff --cached --quiet; then
               echo "⚠️  No changes to commit for $PROJECT"
               git checkout main
               exit 0
             fi
-            
-            VERSION=$(jq -r ".version // empty" "$PROJECT_PATH/package.json" 2>/dev/null \
-              || cat "$PROJECT_PATH/version.txt" 2>/dev/null \
-              || echo "unknown")
+
+            VERSION=$(cat "$PROJECT_PATH/version.txt" 2>/dev/null || echo "unknown")
 
             git add .
             git commit -m "chore: version $PROJECT to $VERSION"
             git push -u origin "$BRANCH" --force
-            
-            PR_BODY="This PR was automatically generated for **$PROJECT**.
 
-          ## 📋 Changes
+            # Use the new gh pr open command - handles PR creation and updates
+            changeset gh pr open \
+              --owner ${{ github.repository_owner }} \
+              --repo ${{ github.event.repository.name }} \
+              --project "$PROJECT"
 
-          $CHANGELOG_PREVIEW
-
-          <!-- RELATED_PRS_PLACEHOLDER -->
-
-          ## 📦 What happens when you merge?
-          - Version bumped to **$VERSION**
-          - Changelog updated
-          - Changesets consumed
-          - Publish workflow creates GitHub release: \`$PROJECT@v$VERSION\`"
-            
-            # Create PR and capture URL
-            PR_URL=$(gh pr create \
-              --title "🚀 Release $PROJECT v$VERSION" \
-              --body "$PR_BODY" \
-              --head "$BRANCH" \
-              --base main \
-              --label "release" \
-              --label "automated" 2>&1 | grep "https://github.com" || echo "")
-            
-            # Save PR number for linking step
-            if [ -n "$PR_URL" ]; then
-              PR_NUM=$(echo "$PR_URL" | grep -o "[0-9]*$")
-              echo "$PROJECT=$PR_NUM" >> /tmp/pr-mapping.txt
-              echo "Created PR #$PR_NUM for $PROJECT"
-            else
-              # PR might already exist, try to update it and get PR number
-              gh pr edit "$BRANCH" \
-                --title "🚀 Release $PROJECT v$VERSION" \
-                --body "$PR_BODY" || true
-              
-              # Get PR number for existing PR
-              EXISTING_PR=$(gh pr list --head "$BRANCH" --json number -q '.[0].number' 2>/dev/null || echo "")
-              if [ -n "$EXISTING_PR" ]; then
-                echo "$PROJECT=$EXISTING_PR" >> /tmp/pr-mapping.txt
-                echo "Updated existing PR #$EXISTING_PR for $PROJECT"
-              fi
-            fi
-            
             git checkout main
             git reset --hard origin/main
             git clean -fd
-            
+
             echo "✅ PR created/updated for $PROJECT"
           '
 
@@ -142,6 +101,7 @@ jobs:
         if: success()
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           # Check if tree.json exists
           if [ ! -f /tmp/tree.json ]; then
@@ -149,85 +109,11 @@ jobs:
             exit 0
           fi
 
-          # Check if jq is available
-          if ! command -v jq &> /dev/null; then
-            echo "jq not installed, skipping PR linking"
-            exit 0
-          fi
-
-          # Check if any PR mappings exist
-          if [ ! -f /tmp/pr-mapping.txt ] || [ ! -s /tmp/pr-mapping.txt ]; then
-            echo "No PRs created, skipping linking"
-            exit 0
-          fi
-
-          echo "Linking related PRs..."
-
-          # Process each group
-          jq -c '.groups[]' /tmp/tree.json | while read -r group; do
-            COMMIT_SHORT=$(echo "$group" | jq -r '.commitShort')
-            COMMIT_MSG=$(echo "$group" | jq -r '.message // "Unknown"')
-            
-            # Get all projects in this group
-            PROJECTS=$(echo "$group" | jq -r '.projects[].name' | sort -u)
-            PROJECT_COUNT=$(echo "$PROJECTS" | wc -l | tr -d " ")
-            
-            # Skip if only one project (no relationships to show)
-            if [ "$PROJECT_COUNT" -le 1 ]; then
-              continue
-            fi
-            
-            echo "Processing group $COMMIT_SHORT ($PROJECT_COUNT projects)"
-            
-            # Build PR list for this group
-            PR_LIST=""
-            for proj in $PROJECTS; do
-              PR_NUM=$(grep "^$proj=" /tmp/pr-mapping.txt | cut -d= -f2 | tr -d " ")
-              if [ -n "$PR_NUM" ]; then
-                PR_LIST="$PR_LIST
-          - #$PR_NUM Release $proj"
-              fi
-            done
-            
-            # Update each PR in the group with links to related PRs
-            for proj in $PROJECTS; do
-              PR_NUM=$(grep "^$proj=" /tmp/pr-mapping.txt | cut -d= -f2 | tr -d " ")
-              
-              if [ -z "$PR_NUM" ]; then
-                continue
-              fi
-              
-              # Build related section
-              RELATED_SECTION="
-
-          ## 🔗 Related Release PRs
-
-          This release is part of a coordinated change from commit [\`$COMMIT_SHORT\`]:
-          $PR_LIST
-
-          **💡 Tip:** These changes were made together. Consider reviewing and merging all related PRs together for consistency."
-              
-              # Get current PR body
-              CURRENT_BODY=$(gh pr view $PR_NUM --json body -q .body 2>/dev/null || echo "")
-              
-              if [ -z "$CURRENT_BODY" ]; then
-                echo "  ⚠️  Could not get body for PR #$PR_NUM"
-                continue
-              fi
-              
-              # Replace placeholder with actual links
-              NEW_BODY=$(echo "$CURRENT_BODY" | awk -v section="$RELATED_SECTION" \
-                '{gsub(/<!-- RELATED_PRS_PLACEHOLDER -->/, section); print}')
-              
-              # Update PR
-              echo "$NEW_BODY" | gh pr edit $PR_NUM --body-file - 2>/dev/null || {
-                echo "  ⚠️  Could not update PR #$PR_NUM"
-                continue
-              }
-              
-              echo "  ✅ Updated PR #$PR_NUM ($proj) with related PR links"
-            done
-          done
+          # Use the new gh pr link command - links related PRs using tree data
+          changeset gh pr link \
+            --owner ${{ github.repository_owner }} \
+            --repo ${{ github.event.repository.name }} \
+            --tree-file /tmp/tree.json
 
           echo "✅ Related PRs linked"
 
@@ -235,26 +121,17 @@ jobs:
         if: always()
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           echo "Checking for obsolete release PRs..."
 
           # For each project with no changesets (unchanged)
           changeset each --filter unchanged -- sh -c '
-            BRANCH="changeset-release/$PROJECT"
-            
-            # Check if PR exists for this branch
-            PR_NUM=$(gh pr list --head "$BRANCH" --state open --json number -q ".[0].number" 2>/dev/null || echo "")
-            
-            if [ -n "$PR_NUM" ]; then
-              echo "Closing obsolete PR #$PR_NUM for $PROJECT (no changesets remaining)"
-              
-              CLOSE_MSG="✅ This release PR is no longer needed (no changesets remaining for $PROJECT). If new changesets are added, a new PR will be created automatically."
-              
-              gh pr close $PR_NUM --comment "$CLOSE_MSG" || true
-              
-              # Delete the branch
-              git push origin --delete "$BRANCH" 2>/dev/null || true
-            fi
+            # Use the new gh pr close command - closes obsolete PRs and deletes branches
+            changeset gh pr close \
+              --owner ${{ github.repository_owner }} \
+              --repo ${{ github.event.repository.name }} \
+              --project "$PROJECT"
           ' || true
 
           echo "✅ Obsolete PR cleanup complete"
