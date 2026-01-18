@@ -29,28 +29,20 @@ type resolvedProject struct {
 
 // ToContext converts the resolved project to a ProjectContext for use in commands
 // that need full project context (like gh pr commands).
-func (r *resolvedProject) ToContext() *models.ProjectContext {
+func (r *resolvedProject) ToContext() (*models.ProjectContext, error) {
 	builder := newProjectContextBuilder(r.Workspace.FileSystem(), nil)
 	contexts, err := builder.Build(r.Workspace)
 	if err != nil {
-		return &models.ProjectContext{
-			Project:     r.Name,
-			ProjectPath: r.Project.RootPath,
-			ModulePath:  r.Project.ModulePath,
-		}
+		return nil, fmt.Errorf("failed to build project context: %w", err)
 	}
 
 	for _, ctx := range contexts {
 		if ctx.Project == r.Name {
-			return ctx
+			return ctx, nil
 		}
 	}
 
-	return &models.ProjectContext{
-		Project:     r.Name,
-		ProjectPath: r.Project.RootPath,
-		ModulePath:  r.Project.ModulePath,
-	}
+	return nil, fmt.Errorf("context could not be resolved for project %q", r.Name)
 }
 
 func resolveProjectName(projectFlag string) (string, bool, error) {

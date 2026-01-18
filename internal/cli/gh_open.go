@@ -63,7 +63,10 @@ func (c *GHOpenCommand) Run(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return fmt.Errorf("failed to resolve project: %w", err)
 	}
-	ctx := resolved.ToContext()
+	ctx, err := resolved.ToContext()
+	if err != nil {
+		return fmt.Errorf("failed to get project context: %w", err)
+	}
 
 	version, err := c.readVersion(ctx.ProjectPath)
 	if err != nil {

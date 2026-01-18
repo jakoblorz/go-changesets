@@ -54,7 +54,10 @@ func (c *GHCloseCommand) Run(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return fmt.Errorf("failed to resolve project: %w", err)
 	}
-	ctx := resolved.ToContext()
+	ctx, err := resolved.ToContext()
+	if err != nil {
+		return fmt.Errorf("failed to get project context: %w", err)
+	}
 
 	branchName := fmt.Sprintf("changeset-release/%s", ctx.Project)
 
