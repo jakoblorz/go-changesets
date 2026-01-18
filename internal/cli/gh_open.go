@@ -2,8 +2,8 @@ package cli
 
 import (
 	"fmt"
-	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/jakoblorz/go-changesets/internal/filesystem"
 	"github.com/jakoblorz/go-changesets/internal/github"
@@ -59,10 +59,11 @@ func (c *GHOpenCommand) Run(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("--repo is required")
 	}
 
-	ctx, err := c.readProjectContext()
+	resolved, err := resolveProject(c.fs, "")
 	if err != nil {
-		return fmt.Errorf("failed to read project context: %w", err)
+		return fmt.Errorf("failed to resolve project: %w", err)
 	}
+	ctx := resolved.ToContext()
 
 	version, err := c.readVersion(ctx.ProjectPath)
 	if err != nil {
@@ -119,36 +120,13 @@ func (c *GHOpenCommand) Run(cmd *cobra.Command, args []string) error {
 	return nil
 }
 
-func (c *GHOpenCommand) readProjectContext() (*models.ProjectContext, error) {
-	ctx, err := readProjectContextFromStdin()
-	if err == nil {
-		return ctx, nil
-	}
-
-	projectName := os.Getenv("PROJECT")
-	projectPath := os.Getenv("PROJECT_PATH")
-	currentVersion := os.Getenv("CURRENT_VERSION")
-	changelogPreview := os.Getenv("CHANGELOG_PREVIEW")
-
-	if projectName == "" || projectPath == "" {
-		return nil, fmt.Errorf("no project context available (stdin empty and PROJECT/PROJECT_PATH env vars not set)")
-	}
-
-	return &models.ProjectContext{
-		Project:          projectName,
-		ProjectPath:      projectPath,
-		CurrentVersion:   currentVersion,
-		ChangelogPreview: changelogPreview,
-	}, nil
-}
-
 func (c *GHOpenCommand) readVersion(projectPath string) (string, error) {
 	versionPath := filepath.Join(projectPath, "version.txt")
 	data, err := c.fs.ReadFile(versionPath)
 	if err != nil {
 		return "0.0.0", nil
 	}
-	return string(data), nil
+	return strings.TrimSpace(string(data)), nil
 }
 
 func (c *GHOpenCommand) buildPRBody(ctx *models.ProjectContext) (string, error) {

@@ -9,10 +9,27 @@ import (
 	"github.com/gkampitakis/go-snaps/snaps"
 	"github.com/jakoblorz/go-changesets/internal/filesystem"
 	"github.com/jakoblorz/go-changesets/internal/github"
-	"github.com/jakoblorz/go-changesets/internal/models"
+	"github.com/jakoblorz/go-changesets/internal/workspace"
 	"github.com/spf13/cobra"
 	"github.com/stretchr/testify/require"
 )
+
+const testWorkspaceRootGH = "/test-workspace"
+
+func buildWorkspaceForGH(t *testing.T, setup func(*workspace.WorkspaceBuilder)) (*workspace.Workspace, *filesystem.MockFileSystem) {
+	t.Helper()
+
+	wb := workspace.NewWorkspaceBuilder(testWorkspaceRootGH)
+	if setup != nil {
+		setup(wb)
+	}
+
+	fs := wb.Build()
+	ws := workspace.New(fs)
+	require.NoError(t, ws.Detect())
+
+	return ws, fs
+}
 
 func newGHOpenCommandWithParent(fs filesystem.FileSystem, ghClient github.GitHubClient, owner, repo string) *cobra.Command {
 	ghCmd := &cobra.Command{
@@ -33,32 +50,21 @@ func newGHOpenCommandWithParent(fs filesystem.FileSystem, ghClient github.GitHub
 }
 
 func TestGHOpen_CreateNewPR(t *testing.T) {
-	fs := filesystem.NewMockFileSystem()
+	ws, fs := buildWorkspaceForGH(t, func(wb *workspace.WorkspaceBuilder) {
+		wb.AddProject("auth", "packages/auth", "github.com/test/auth")
+		wb.SetVersion("auth", "1.0.0")
+	})
+
 	ghClient := github.NewMockClient()
-
-	ctx := &models.ProjectContext{
-		Project:          "auth",
-		ProjectPath:      "/workspace/auth",
-		CurrentVersion:   "1.0.0",
-		ChangelogPreview: "## Minor Changes\n\n- Add OAuth2 support",
-	}
-
-	fs.AddDir("/workspace")
-	fs.AddDir("/workspace/auth")
-	fs.AddFile("/workspace/auth/version.txt", []byte("1.0.0"))
 
 	ghCmd := newGHOpenCommandWithParent(fs, ghClient, "testorg", "testrepo")
 	ghCmd.SetArgs([]string{"pr", "open"})
 
-	os.Setenv("PROJECT", ctx.Project)
-	os.Setenv("PROJECT_PATH", ctx.ProjectPath)
-	os.Setenv("CURRENT_VERSION", ctx.CurrentVersion)
-	os.Setenv("CHANGELOG_PREVIEW", ctx.ChangelogPreview)
+	os.Setenv("PROJECT", "auth")
+	os.Setenv("PROJECT_PATH", ws.Projects[0].RootPath)
 	defer func() {
 		os.Unsetenv("PROJECT")
 		os.Unsetenv("PROJECT_PATH")
-		os.Unsetenv("CURRENT_VERSION")
-		os.Unsetenv("CHANGELOG_PREVIEW")
 	}()
 
 	err := ghCmd.Execute()
@@ -69,14 +75,17 @@ func TestGHOpen_CreateNewPR(t *testing.T) {
 
 	pr := prs[0]
 	require.Equal(t, "🚀 Release auth v1.0.0", pr.Title)
-	require.Contains(t, pr.Body, "Add OAuth2 support")
 	require.Contains(t, pr.Body, "<!-- RELATED_PRS_PLACEHOLDER -->")
 	require.Equal(t, "changeset-release/auth", pr.Head)
 	require.Equal(t, "main", pr.Base)
 }
 
 func TestGHOpen_UpdateExistingPR(t *testing.T) {
-	fs := filesystem.NewMockFileSystem()
+	ws, fs := buildWorkspaceForGH(t, func(wb *workspace.WorkspaceBuilder) {
+		wb.AddProject("auth", "packages/auth", "github.com/test/auth")
+		wb.SetVersion("auth", "1.1.0")
+	})
+
 	ghClient := github.NewMockClient()
 
 	existingPR := &github.PullRequest{
@@ -90,29 +99,14 @@ func TestGHOpen_UpdateExistingPR(t *testing.T) {
 	}
 	ghClient.AddPullRequestByHead("testorg", "testrepo", "changeset-release/auth", existingPR)
 
-	ctx := &models.ProjectContext{
-		Project:          "auth",
-		ProjectPath:      "/workspace/auth",
-		CurrentVersion:   "1.1.0",
-		ChangelogPreview: "## Minor Changes\n\n- Add new feature",
-	}
-
-	fs.AddDir("/workspace")
-	fs.AddDir("/workspace/auth")
-	fs.AddFile("/workspace/auth/version.txt", []byte("1.1.0"))
-
 	ghCmd := newGHOpenCommandWithParent(fs, ghClient, "testorg", "testrepo")
 	ghCmd.SetArgs([]string{"pr", "open"})
 
-	os.Setenv("PROJECT", ctx.Project)
-	os.Setenv("PROJECT_PATH", ctx.ProjectPath)
-	os.Setenv("CURRENT_VERSION", ctx.CurrentVersion)
-	os.Setenv("CHANGELOG_PREVIEW", ctx.ChangelogPreview)
+	os.Setenv("PROJECT", "auth")
+	os.Setenv("PROJECT_PATH", ws.Projects[0].RootPath)
 	defer func() {
 		os.Unsetenv("PROJECT")
 		os.Unsetenv("PROJECT_PATH")
-		os.Unsetenv("CURRENT_VERSION")
-		os.Unsetenv("CHANGELOG_PREVIEW")
 	}()
 
 	err := ghCmd.Execute()
@@ -124,36 +118,24 @@ func TestGHOpen_UpdateExistingPR(t *testing.T) {
 	pr := prs[0]
 	require.Equal(t, 42, pr.Number)
 	require.Equal(t, "🚀 Release auth v1.1.0", pr.Title)
-	require.Contains(t, pr.Body, "Add new feature")
 }
 
 func TestGHOpen_DefaultTemplate(t *testing.T) {
-	fs := filesystem.NewMockFileSystem()
+	ws, fs := buildWorkspaceForGH(t, func(wb *workspace.WorkspaceBuilder) {
+		wb.AddProject("api", "packages/api", "github.com/test/api")
+		wb.SetVersion("api", "2.0.0")
+	})
+
 	ghClient := github.NewMockClient()
-
-	ctx := &models.ProjectContext{
-		Project:          "api",
-		ProjectPath:      "/workspace/api",
-		CurrentVersion:   "2.0.0",
-		ChangelogPreview: "## Major Changes\n\n- Breaking API change",
-	}
-
-	fs.AddDir("/workspace")
-	fs.AddDir("/workspace/api")
-	fs.AddFile("/workspace/api/version.txt", []byte("2.0.0"))
 
 	ghCmd := newGHOpenCommandWithParent(fs, ghClient, "testorg", "testrepo")
 	ghCmd.SetArgs([]string{"pr", "open"})
 
-	os.Setenv("PROJECT", ctx.Project)
-	os.Setenv("PROJECT_PATH", ctx.ProjectPath)
-	os.Setenv("CURRENT_VERSION", ctx.CurrentVersion)
-	os.Setenv("CHANGELOG_PREVIEW", ctx.ChangelogPreview)
+	os.Setenv("PROJECT", "api")
+	os.Setenv("PROJECT_PATH", ws.Projects[0].RootPath)
 	defer func() {
 		os.Unsetenv("PROJECT")
 		os.Unsetenv("PROJECT_PATH")
-		os.Unsetenv("CURRENT_VERSION")
-		os.Unsetenv("CHANGELOG_PREVIEW")
 	}()
 
 	err := ghCmd.Execute()
@@ -168,34 +150,23 @@ func TestGHOpen_DefaultTemplate(t *testing.T) {
 }
 
 func TestGHOpen_MappingFileUpdated(t *testing.T) {
-	fs := filesystem.NewMockFileSystem()
+	ws, fs := buildWorkspaceForGH(t, func(wb *workspace.WorkspaceBuilder) {
+		wb.AddProject("auth", "packages/auth", "github.com/test/auth")
+		wb.SetVersion("auth", "1.0.0")
+	})
+
 	ghClient := github.NewMockClient()
-
-	ctx := &models.ProjectContext{
-		Project:          "auth",
-		ProjectPath:      "/workspace/auth",
-		CurrentVersion:   "1.0.0",
-		ChangelogPreview: "- Test",
-	}
-
-	fs.AddDir("/workspace")
-	fs.AddDir("/workspace/auth")
-	fs.AddFile("/workspace/auth/version.txt", []byte("1.0.0"))
 
 	mappingFile := filepath.Join(t.TempDir(), "pr-mapping.json")
 
 	ghCmd := newGHOpenCommandWithParent(fs, ghClient, "testorg", "testrepo")
 	ghCmd.SetArgs([]string{"pr", "open", "--mapping-file", mappingFile})
 
-	os.Setenv("PROJECT", ctx.Project)
-	os.Setenv("PROJECT_PATH", ctx.ProjectPath)
-	os.Setenv("CURRENT_VERSION", ctx.CurrentVersion)
-	os.Setenv("CHANGELOG_PREVIEW", ctx.ChangelogPreview)
+	os.Setenv("PROJECT", "auth")
+	os.Setenv("PROJECT_PATH", ws.Projects[0].RootPath)
 	defer func() {
 		os.Unsetenv("PROJECT")
 		os.Unsetenv("PROJECT_PATH")
-		os.Unsetenv("CURRENT_VERSION")
-		os.Unsetenv("CHANGELOG_PREVIEW")
 	}()
 
 	err := ghCmd.Execute()
@@ -235,32 +206,21 @@ func TestGHOpen_MissingOwnerOrRepo(t *testing.T) {
 }
 
 func TestGHOpen_ReadVersionFromFile(t *testing.T) {
-	fs := filesystem.NewMockFileSystem()
+	ws, fs := buildWorkspaceForGH(t, func(wb *workspace.WorkspaceBuilder) {
+		wb.AddProject("auth", "packages/auth", "github.com/test/auth")
+		wb.SetVersion("auth", "3.2.1")
+	})
+
 	ghClient := github.NewMockClient()
-
-	ctx := &models.ProjectContext{
-		Project:          "auth",
-		ProjectPath:      "/workspace/auth",
-		CurrentVersion:   "0.0.0",
-		ChangelogPreview: "- Version bump",
-	}
-
-	fs.AddDir("/workspace")
-	fs.AddDir("/workspace/auth")
-	fs.AddFile("/workspace/auth/version.txt", []byte("3.2.1"))
 
 	ghCmd := newGHOpenCommandWithParent(fs, ghClient, "testorg", "testrepo")
 	ghCmd.SetArgs([]string{"pr", "open"})
 
-	os.Setenv("PROJECT", ctx.Project)
-	os.Setenv("PROJECT_PATH", ctx.ProjectPath)
-	os.Setenv("CURRENT_VERSION", ctx.CurrentVersion)
-	os.Setenv("CHANGELOG_PREVIEW", ctx.ChangelogPreview)
+	os.Setenv("PROJECT", "auth")
+	os.Setenv("PROJECT_PATH", ws.Projects[0].RootPath)
 	defer func() {
 		os.Unsetenv("PROJECT")
 		os.Unsetenv("PROJECT_PATH")
-		os.Unsetenv("CURRENT_VERSION")
-		os.Unsetenv("CHANGELOG_PREVIEW")
 	}()
 
 	err := ghCmd.Execute()
@@ -274,32 +234,21 @@ func TestGHOpen_ReadVersionFromFile(t *testing.T) {
 }
 
 func TestGHOpen_EnvVarContext(t *testing.T) {
-	fs := filesystem.NewMockFileSystem()
+	ws, fs := buildWorkspaceForGH(t, func(wb *workspace.WorkspaceBuilder) {
+		wb.AddProject("api", "packages/api", "github.com/test/api")
+		wb.SetVersion("api", "1.0.0")
+	})
+
 	ghClient := github.NewMockClient()
-
-	ctx := &models.ProjectContext{
-		Project:          "api",
-		ProjectPath:      "/workspace/api",
-		CurrentVersion:   "1.0.0",
-		ChangelogPreview: "- API change",
-	}
-
-	fs.AddDir("/workspace")
-	fs.AddDir("/workspace/api")
-	fs.AddFile("/workspace/api/version.txt", []byte("1.0.0"))
 
 	ghCmd := newGHOpenCommandWithParent(fs, ghClient, "testorg", "testrepo")
 	ghCmd.SetArgs([]string{"pr", "open"})
 
-	os.Setenv("PROJECT", ctx.Project)
-	os.Setenv("PROJECT_PATH", ctx.ProjectPath)
-	os.Setenv("CURRENT_VERSION", ctx.CurrentVersion)
-	os.Setenv("CHANGELOG_PREVIEW", ctx.ChangelogPreview)
+	os.Setenv("PROJECT", "api")
+	os.Setenv("PROJECT_PATH", ws.Projects[0].RootPath)
 	defer func() {
 		os.Unsetenv("PROJECT")
 		os.Unsetenv("PROJECT_PATH")
-		os.Unsetenv("CURRENT_VERSION")
-		os.Unsetenv("CHANGELOG_PREVIEW")
 	}()
 
 	err := ghCmd.Execute()

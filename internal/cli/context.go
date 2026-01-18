@@ -27,17 +27,77 @@ type resolvedProject struct {
 	Project   *models.Project
 }
 
+// ToContext converts the resolved project to a ProjectContext for use in commands
+// that need full project context (like gh pr commands).
+func (r *resolvedProject) ToContext() *models.ProjectContext {
+	ctx := &models.ProjectContext{
+		Project:     r.Name,
+		ProjectPath: r.Project.RootPath,
+		ModulePath:  r.Project.ModulePath,
+	}
+
+	versionPath := filepath.Join(r.Project.RootPath, "version.txt")
+	if data, err := r.Workspace.FileSystem().ReadFile(versionPath); err == nil {
+		ctx.CurrentVersion = strings.TrimSpace(string(data))
+	}
+
+	csManager := changeset.NewManager(r.Workspace.FileSystem(), r.Workspace.ChangesetDir())
+	allChangesets, err := csManager.ReadAll()
+	if err == nil {
+		projectChangesets := changeset.FilterByProject(allChangesets, r.Name)
+		ctx.HasChangesets = len(projectChangesets) > 0
+
+		for _, cs := range projectChangesets {
+			bump, _ := cs.GetBumpForProject(r.Name)
+			ctx.Changesets = append(ctx.Changesets, models.ChangesetSummary{
+				ID:       cs.ID,
+				BumpType: bump,
+				Message:  cs.Message,
+			})
+		}
+
+		if len(projectChangesets) > 0 {
+			changelog := changelog.NewChangelog(r.Workspace.FileSystem())
+			preview, err := changelog.FormatEntry(projectChangesets, r.Name, r.Project.RootPath)
+			if err == nil {
+				ctx.ChangelogPreview = preview
+			}
+		}
+	}
+
+	return ctx
+}
+
 func resolveProjectName(projectFlag string) (string, bool, error) {
 	if projectFlag != "" {
 		return projectFlag, false, nil
 	}
 
+	// Try stdin first (when run via 'changeset each')
 	ctx, err := readProjectContextFromStdin()
-	if err != nil {
-		return "", false, err
+	if err == nil {
+		return ctx.Project, true, nil
 	}
 
-	return ctx.Project, true, nil
+	// Fall back to PROJECT env var (when run directly)
+	projectName := os.Getenv("PROJECT")
+	if projectName != "" {
+		return projectName, true, nil
+	}
+
+	// Also support PROJECT_PATH env var and extract project name from path
+	// TODO: folder name may not always equal project name
+	projectPath := os.Getenv("PROJECT_PATH")
+	if projectPath != "" {
+		for i := len(projectPath) - 1; i >= 0; i-- {
+			if projectPath[i] == '/' {
+				return projectPath[i+1:], true, nil
+			}
+		}
+		return projectPath, true, nil
+	}
+
+	return "", false, fmt.Errorf("no project context available (stdin empty and PROJECT/PROJECT_PATH env vars not set)")
 }
 
 func resolveWorkspaceProject(fs filesystem.FileSystem, projectName string) (*workspace.Workspace, *models.Project, error) {

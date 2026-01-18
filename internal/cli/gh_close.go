@@ -2,7 +2,6 @@ package cli
 
 import (
 	"fmt"
-	"os"
 
 	"github.com/jakoblorz/go-changesets/internal/filesystem"
 	"github.com/jakoblorz/go-changesets/internal/github"
@@ -51,16 +50,9 @@ func (c *GHCloseCommand) Run(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("--repo is required")
 	}
 
-	projectName := ""
-	projectPath := os.Getenv("PROJECT_PATH")
-	if projectPath != "" {
-		projectName = c.extractProjectName(projectPath)
-	} else {
-		projectName = os.Getenv("PROJECT")
-	}
-
-	if projectName == "" {
-		return fmt.Errorf("no project context available")
+	projectName, _, err := resolveProjectName("")
+	if err != nil {
+		return fmt.Errorf("failed to resolve project: %w", err)
 	}
 
 	branchName := fmt.Sprintf("changeset-release/%s", projectName)
@@ -98,13 +90,4 @@ func (c *GHCloseCommand) Run(cmd *cobra.Command, args []string) error {
 	}
 
 	return nil
-}
-
-func (c *GHCloseCommand) extractProjectName(projectPath string) string {
-	for i := len(projectPath) - 1; i >= 0; i-- {
-		if projectPath[i] == '/' {
-			return projectPath[i+1:]
-		}
-	}
-	return projectPath
 }

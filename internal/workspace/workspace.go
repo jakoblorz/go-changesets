@@ -161,6 +161,11 @@ func (w *Workspace) ChangesetDir() string {
 	return filepath.Join(w.RootPath, ".changeset")
 }
 
+// FileSystem returns the filesystem used by this workspace.
+func (w *Workspace) FileSystem() filesystem.FileSystem {
+	return w.fs
+}
+
 // extractProjectName extracts the project name from a module path.
 // e.g., "github.com/user/project" -> "project".
 func extractProjectName(modulePath string) string {
