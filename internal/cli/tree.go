@@ -214,7 +214,7 @@ func (c *TreeCommand) applyFilter(groups []*ChangesetGroup, ws *workspace.Worksp
 		}
 	case "has-version", "no-version", "outdated-versions", "unchanged":
 		builder := newProjectContextBuilder(c.fs, c.git)
-		contexts, err := builder.Build(ws)
+		contexts, err := builder.BuildFromWorkspace(ws)
 		if err != nil {
 			return nil, err
 		}

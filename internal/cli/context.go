@@ -132,7 +132,7 @@ func (b *projectContextBuilder) BuildFromTreeFile(tree TreeOutput) ([]*models.Pr
 	return contexts, nil
 }
 
-func (b *projectContextBuilder) Build(ws *workspace.Workspace) ([]*models.ProjectContext, error) {
+func (b *projectContextBuilder) BuildFromWorkspace(ws *workspace.Workspace) ([]*models.ProjectContext, error) {
 	csManager := changeset.NewManager(b.fs, ws.ChangesetDir())
 	allChangesets, err := csManager.ReadAll()
 	if err != nil {

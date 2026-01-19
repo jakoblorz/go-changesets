@@ -100,7 +100,7 @@ func (c *EachCommand) runFromFilter() error {
 	}
 
 	builder := newProjectContextBuilder(c.fs, c.git)
-	contexts, err := builder.Build(ws)
+	contexts, err := builder.BuildFromWorkspace(ws)
 	if err != nil {
 		return fmt.Errorf("failed to build project contexts: %w", err)
 	}
