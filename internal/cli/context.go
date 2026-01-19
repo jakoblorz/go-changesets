@@ -33,11 +33,16 @@ func resolveProjectName(projectFlag string) (string, bool, error) {
 	}
 
 	ctx, err := readProjectContextFromStdin()
-	if err != nil {
-		return "", false, err
+	if err == nil {
+		return ctx.Project, true, nil
 	}
 
-	return ctx.Project, true, nil
+	ctx, err = readProjectContextFromEnv()
+	if err == nil {
+		return ctx.Project, true, nil
+	}
+
+	return "", false, fmt.Errorf("no project context available (stdin empty and CHANGESET_CONTEXT env var not set, you may need to specific the project)")
 }
 
 func resolveWorkspaceProject(fs filesystem.FileSystem, projectName string) (*workspace.Workspace, *models.Project, error) {
@@ -291,6 +296,29 @@ func readProjectContextFromStdin() (*models.ProjectContext, error) {
 	}
 
 	// Validate required fields
+	if ctx.Project == "" {
+		return nil, fmt.Errorf("invalid context: project name is required")
+	}
+
+	return &ctx, nil
+}
+
+// readProjectContextFromEnv attempts to read project context from the
+// CHANGESET_CONTEXT environment variable.
+//
+// This function is used by commands to auto-detect when they're being
+// executed via 'changeset each' and receive project context via env var.
+func readProjectContextFromEnv() (*models.ProjectContext, error) {
+	env := os.Getenv("CHANGESET_CONTEXT")
+	if env == "" {
+		return nil, fmt.Errorf("no context in CHANGESET_CONTEXT env var")
+	}
+
+	var ctx models.ProjectContext
+	if err := json.Unmarshal([]byte(env), &ctx); err != nil {
+		return nil, fmt.Errorf("failed to parse context JSON from env: %w", err)
+	}
+
 	if ctx.Project == "" {
 		return nil, fmt.Errorf("invalid context: project name is required")
 	}
