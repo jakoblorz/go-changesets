@@ -83,7 +83,56 @@ func newProjectContextBuilder(fs filesystem.FileSystem, gitClient git.GitClient)
 	return &projectContextBuilder{fs: fs, git: gitClient}
 }
 
-func (b *projectContextBuilder) Build(ws *workspace.Workspace) ([]*models.ProjectContext, error) {
+func (b *projectContextBuilder) BuildFromTreeFile(tree TreeOutput) ([]*models.ProjectContext, error) {
+	var contexts []*models.ProjectContext
+	for _, group := range tree.Groups {
+		for _, proj := range group.Projects {
+			project, err := resolveProject(b.fs, proj.Name)
+			if err != nil {
+				return nil, fmt.Errorf("failed to resolve project %s: %w", proj.Name, err)
+			}
+
+			ctx := &models.ProjectContext{
+				Project:          project.Name,
+				ProjectPath:      project.Project.RootPath,
+				ModulePath:       project.Project.ModulePath,
+				Changesets:       []models.ChangesetSummary{},
+				HasVersionFile:   hasVersionFile(b.fs, project.Project),
+				ChangelogPreview: proj.ChangelogPreview,
+			}
+
+			projectChangesets := proj.Changesets
+			ctx.HasChangesets = len(projectChangesets) > 0
+
+			for _, cs := range projectChangesets {
+				ctx.Changesets = append(ctx.Changesets, models.ChangesetSummary{
+					ID:       cs.ID,
+					BumpType: models.BumpType(cs.Bump),
+					Message:  cs.Message,
+				})
+			}
+
+			versionStore := versioning.NewVersionStore(b.fs, project.Project.Type)
+			if currentVer, err := versionStore.Read(project.Project.RootPath); err == nil {
+				ctx.CurrentVersion = currentVer.String()
+			} else {
+				ctx.CurrentVersion = "0.0.0"
+			}
+
+			ctx.LatestTag = latestTagVersion(b.git, project.Name)
+
+			currentVer, _ := models.ParseVersion(ctx.CurrentVersion)
+			latestVer, _ := models.ParseVersion(ctx.LatestTag)
+			ctx.IsOutdated = currentVer.Compare(latestVer) > 0
+
+			contexts = append(contexts, ctx)
+		}
+	}
+
+	return contexts, nil
+}
+
+func (b *projectContextBuilder) BuildFromWorkspace(ws *workspace.Workspace) ([]*models.ProjectContext, error) {
 	csManager := changeset.NewManager(b.fs, ws.ChangesetDir())
 	allChangesets, err := csManager.ReadAll()
 	if err != nil {
@@ -94,12 +143,11 @@ func (b *projectContextBuilder) Build(ws *workspace.Workspace) ([]*models.Projec
 
 	for _, project := range ws.Projects {
 		ctx := &models.ProjectContext{
-			Project:          project.Name,
-			ProjectPath:      project.RootPath,
-			ModulePath:       project.ModulePath,
-			Changesets:       []models.ChangesetSummary{},
-			HasVersionFile:   hasVersionFile(b.fs, project),
-			ChangelogPreview: "",
+			Project:        project.Name,
+			ProjectPath:    project.RootPath,
+			ModulePath:     project.ModulePath,
+			Changesets:     []models.ChangesetSummary{},
+			HasVersionFile: hasVersionFile(b.fs, project),
 		}
 
 		projectChangesets := changeset.FilterByProject(allChangesets, project.Name)
