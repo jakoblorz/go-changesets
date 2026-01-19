@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"strings"
@@ -17,17 +18,21 @@ import (
 
 // EachCommand handles the each command
 type EachCommand struct {
-	fs      filesystem.FileSystem
-	git     git.GitClient
-	filters []string
-	command []string
+	fs           filesystem.FileSystem
+	git          git.GitClient
+	filters      []string
+	command      []string
+	fromTreeFile string
+
+	stdoutWriter io.Writer
 }
 
 // NewEachCommand creates a new each command
-func NewEachCommand(fs filesystem.FileSystem, gitClient git.GitClient) *cobra.Command {
+func NewEachCommand(fs filesystem.FileSystem, gitClient git.GitClient, stdoutWriter io.Writer) *cobra.Command {
 	cmd := &EachCommand{
-		fs:  fs,
-		git: gitClient,
+		fs:           fs,
+		git:          gitClient,
+		stdoutWriter: stdoutWriter,
 	}
 
 	cobraCmd := &cobra.Command{
@@ -51,14 +56,27 @@ Environment variables are also set: PROJECT, PROJECT_PATH, CURRENT_VERSION, LATE
   changeset each --filter=outdated-versions -- changeset publish --owner org --repo repo
 
   # Custom script
-  changeset each --filter=open-changesets -- bash -c 'echo "Releasing $PROJECT"'`,
+  changeset each --filter=open-changesets -- bash -c 'echo "Releasing $PROJECT"'
+
+  # Link PRs using tree file (after versioning)
+  changeset each --from-tree-file=/tmp/tree.json -- bash -c 'echo "Releasing $PROJECT"'`,
 		RunE: cmd.Run,
 	}
 
 	cobraCmd.Flags().StringSliceVar(&cmd.filters, "filter", []string{"all"},
 		"Filter projects (open-changesets, outdated-versions, has-version, no-version, unchanged, all)")
+	cobraCmd.Flags().StringVar(&cmd.fromTreeFile, "from-tree-file", "",
+		"Read projects from a tree JSON file instead of workspace filters")
 
 	return cobraCmd
+}
+
+// getStdoutWriter returns the output writer or stdout if not set
+func (c *EachCommand) getStdoutWriter() io.Writer {
+	if c.stdoutWriter == nil {
+		return os.Stdout
+	}
+	return c.stdoutWriter
 }
 
 // Run executes the each command
@@ -68,6 +86,14 @@ func (c *EachCommand) Run(cmd *cobra.Command, args []string) error {
 	}
 	c.command = args
 
+	if c.fromTreeFile != "" {
+		return c.runFromTreeFile()
+	}
+
+	return c.runFromFilter()
+}
+
+func (c *EachCommand) runFromFilter() error {
 	ws := workspace.New(c.fs)
 	if err := ws.Detect(); err != nil {
 		return fmt.Errorf("failed to detect workspace: %w", err)
@@ -90,31 +116,54 @@ func (c *EachCommand) Run(cmd *cobra.Command, args []string) error {
 	}
 
 	if len(filtered) == 0 {
-		fmt.Println("No projects match the specified filters")
+		fmt.Fprintln(c.getStdoutWriter(), "No projects match the specified filters")
 		return nil
 	}
 
-	fmt.Printf("Running command for %d project(s)...\n\n", len(filtered))
+	return c.executeForContexts(filtered)
+}
+
+func (c *EachCommand) runFromTreeFile() error {
+	data, err := c.fs.ReadFile(c.fromTreeFile)
+	if err != nil {
+		return fmt.Errorf("failed to read tree file: %w", err)
+	}
+
+	var tree TreeOutput
+	if err := json.Unmarshal(data, &tree); err != nil {
+		return fmt.Errorf("failed to parse tree JSON: %w", err)
+	}
+
+	contexts, err := newProjectContextBuilder(c.fs, c.git).BuildFromTreeFile(tree)
+	if err != nil {
+		return fmt.Errorf("failed to build project contexts from tree file: %w", err)
+	}
+
+	return c.executeForContexts(contexts)
+}
+
+func (c *EachCommand) executeForContexts(contexts []*models.ProjectContext) error {
+	fmt.Fprintf(c.getStdoutWriter(), "Running command for %d project(s)...\n\n", len(contexts))
 
 	var failed []string
-	for i, ctx := range filtered {
+	for i, ctx := range contexts {
 		if i > 0 {
-			fmt.Println("\n" + strings.Repeat("-", 60) + "\n")
+			fmt.Fprintln(c.getStdoutWriter(), "\n"+strings.Repeat("-", 60)+"\n")
 		}
 
-		fmt.Printf("📦 [%d/%d] %s\n", i+1, len(filtered), ctx.Project)
+		fmt.Fprintf(c.getStdoutWriter(), "📦 [%d/%d] %s\n", i+1, len(contexts), ctx.Project)
 
 		if err := c.executeForProject(ctx); err != nil {
-			fmt.Printf("❌ Failed: %v\n", err)
+			fmt.Fprintf(c.getStdoutWriter(), "❌ Failed: %v\n", err)
 			failed = append(failed, ctx.Project)
 			continue
 		}
 
-		fmt.Printf("✓ Success\n")
+		fmt.Fprintln(c.getStdoutWriter(), "✓ Success")
 	}
 
 	if len(failed) > 0 {
-		fmt.Printf("\n⚠️  %d project(s) failed: %s\n", len(failed), strings.Join(failed, ", "))
+		fmt.Fprintf(c.getStdoutWriter(), "\n⚠️  %d project(s) failed: %s\n", len(failed), strings.Join(failed, ", "))
 		return fmt.Errorf("some projects failed")
 	}
 
@@ -133,7 +182,7 @@ func (c *EachCommand) executeForProject(ctx *models.ProjectContext) error {
 
 	execCmd := exec.Command(cmdName, cmdArgs...)
 	execCmd.Stdin = bytes.NewReader(jsonData)
-	execCmd.Stdout = os.Stdout
+	execCmd.Stdout = c.getStdoutWriter()
 	execCmd.Stderr = os.Stderr
 
 	execCmd.Env = append(os.Environ(),
@@ -143,6 +192,7 @@ func (c *EachCommand) executeForProject(ctx *models.ProjectContext) error {
 		fmt.Sprintf("LATEST_TAG=%s", ctx.LatestTag),
 		fmt.Sprintf("CHANGELOG_PREVIEW=%s", ctx.ChangelogPreview),
 		fmt.Sprintf("CHANGESET_CONTEXT=%s", string(jsonData)),
+		// make sure to update the each_test.go env cases if you add more variables
 	)
 
 	return execCmd.Run()

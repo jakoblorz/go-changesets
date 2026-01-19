@@ -6,6 +6,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/jakoblorz/go-changesets/internal/changelog"
 	"github.com/jakoblorz/go-changesets/internal/changeset"
 	"github.com/jakoblorz/go-changesets/internal/filesystem"
 	"github.com/jakoblorz/go-changesets/internal/git"
@@ -31,8 +32,9 @@ type ChangesetGroup struct {
 
 // ProjectChangesetsInfo represents changesets for a project in a group
 type ProjectChangesetsInfo struct {
-	Name       string          `json:"name"`
-	Changesets []ChangesetInfo `json:"changesets"`
+	Name             string          `json:"name"`
+	Changesets       []ChangesetInfo `json:"changesets"`
+	ChangelogPreview string          `json:"changelogPreview,omitempty"`
 }
 
 // ChangesetInfo represents a single changeset's info
@@ -126,6 +128,7 @@ func (c *TreeCommand) Run(cmd *cobra.Command, args []string) error {
 	if format == "json" {
 		return c.outputJSON(groups)
 	}
+
 	return c.outputText(groups)
 }
 
@@ -347,6 +350,8 @@ func (c *TreeCommand) outputText(groups []*ChangesetGroup) error {
 
 // outputJSON outputs the tree in JSON format
 func (c *TreeCommand) outputJSON(groups []*ChangesetGroup) error {
+	cl := changelog.NewChangelog(c.fs)
+
 	// Convert internal structure to output structure
 	output := TreeOutput{
 		Groups: make([]ChangesetGroup, 0, len(groups)),
@@ -371,9 +376,20 @@ func (c *TreeCommand) outputJSON(groups []*ChangesetGroup) error {
 		for _, projectName := range projectNames {
 			changesets := group.projectsMap[projectName]
 
+			project, err := resolveProject(c.fs, projectName)
+			if err != nil {
+				return fmt.Errorf("failed to resolve project %s: %w", projectName, err)
+			}
+
+			preview, err := cl.FormatEntry(changesets, projectName, project.Project.RootPath)
+			if err != nil {
+				return fmt.Errorf("failed to format changelog preview for %s: %w", projectName, err)
+			}
+
 			projectInfo := ProjectChangesetsInfo{
-				Name:       projectName,
-				Changesets: make([]ChangesetInfo, 0, len(changesets)),
+				Name:             projectName,
+				Changesets:       make([]ChangesetInfo, 0, len(changesets)),
+				ChangelogPreview: preview,
 			}
 
 			for _, cs := range changesets {
