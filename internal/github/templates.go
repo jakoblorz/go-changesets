@@ -32,7 +32,7 @@ const defaultBodyTemplate = `This PR was automatically generated for **{{.Projec
 
 {{.ChangelogPreview}}
 {{- end}}
-{{- if .RelatedPRs}}
+{{- if gt (len .RelatedPRs) 0}}
 
 ## 🔗 Related Release PRs
 
