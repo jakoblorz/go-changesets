@@ -25,7 +25,7 @@ Includes commands for creating, linking, and closing release PRs.`,
 		Long:  "Operations for managing release pull requests.",
 	}
 	prCmd.AddCommand(NewGHOpenCommand(fs, git, ghClient))
-	// prCmd.AddCommand(NewGHLinkCommand(fs, ghClient))
+	prCmd.AddCommand(NewGHLinkCommand(fs, ghClient))
 	// prCmd.AddCommand(NewGHCloseCommand(fs, ghClient))
 
 	cmd.AddCommand(prCmd)

@@ -7,16 +7,21 @@ import (
 )
 
 type PRMapping struct {
-	Version   int                    `json:"version"`
-	UpdatedAt string                 `json:"updatedAt"`
-	Projects  map[string]PullRequest `json:"projects"`
+	Version   int                      `json:"version"`
+	UpdatedAt string                   `json:"updatedAt"`
+	Projects  map[string]PRProjectInfo `json:"projects"`
+}
+
+type PRProjectInfo struct {
+	PullRequest `json:",inline"`
+	Version     string `json:"version"`
 }
 
 func NewPRMapping() *PRMapping {
 	return &PRMapping{
 		Version:   1,
 		UpdatedAt: time.Now().Format(time.RFC3339),
-		Projects:  make(map[string]PullRequest),
+		Projects:  make(map[string]PRProjectInfo),
 	}
 }
 
@@ -40,7 +45,7 @@ func ReadPRMapping(path string) (*PRMapping, error) {
 	}
 
 	if mapping.Projects == nil {
-		mapping.Projects = make(map[string]PullRequest)
+		mapping.Projects = make(map[string]PRProjectInfo)
 	}
 
 	return &mapping, nil
@@ -55,7 +60,7 @@ func (m *PRMapping) Write(path string) error {
 	return os.WriteFile(path, data, 0644)
 }
 
-func (m *PRMapping) Set(project string, entry PullRequest) {
+func (m *PRMapping) Set(project string, entry PRProjectInfo) {
 	m.Projects[project] = entry
 }
 
@@ -63,7 +68,7 @@ func (m *PRMapping) Remove(project string) {
 	delete(m.Projects, project)
 }
 
-func (m *PRMapping) Get(project string) (PullRequest, bool) {
+func (m *PRMapping) Get(project string) (PRProjectInfo, bool) {
 	entry, ok := m.Projects[project]
 	return entry, ok
 }
