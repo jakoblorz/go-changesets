@@ -3,7 +3,6 @@ package github
 import (
 	"context"
 	"fmt"
-	"log"
 	"os"
 
 	"github.com/google/go-github/v57/github"
