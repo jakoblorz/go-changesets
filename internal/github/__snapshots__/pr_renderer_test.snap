@@ -1,9 +1,9 @@
 
-[TestExecuteDefaultTemplate - 1]
+[TestPRRenderer_RenderXXX - 1]
 🚀 Release auth v1.2.0
 ---
 
-[TestExecuteDefaultTemplate - 2]
+[TestPRRenderer_RenderXXX - 2]
 This PR was automatically generated for **auth**.
 
 ## 📦 What happens when you merge?
@@ -14,7 +14,7 @@ This PR was automatically generated for **auth**.
 
 ---
 
-[TestExecuteDefaultTemplate_WithChangelogPreview - 1]
+[TestPRRenderer_RenderBody_WithChangelogPreview - 1]
 This PR was automatically generated for **auth**.
 
 ## 📋 Changes
@@ -30,7 +30,7 @@ This PR was automatically generated for **auth**.
 
 ---
 
-[TestExecuteDefaultTemplate_WithRelatedPRs - 1]
+[TestPRRenderer_RenderBody_WithRelatedPRs - 1]
 This PR was automatically generated for **auth**.
 
 ## 📋 Changes
@@ -53,10 +53,10 @@ This release is part of a coordinated change:
 
 ---
 
-[TestExecuteDefaultTemplate_WithCustomTemplates - 1]
+[TestPRRenderer_RenderXXX_WithCustomTemplates - 1]
 Let's go, let's release auth at v1.2.0
 ---
 
-[TestExecuteDefaultTemplate_WithCustomTemplates - 2]
+[TestPRRenderer_RenderXXX_WithCustomTemplates - 2]
 Release already! auth v1.2.0
 ---

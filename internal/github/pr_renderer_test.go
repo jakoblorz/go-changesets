@@ -9,7 +9,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestExecuteDefaultTemplate(t *testing.T) {
+func TestPRRenderer_RenderXXX(t *testing.T) {
 	t.Cleanup(resetChangelogTemplateCache)
 
 	fs := filesystem.NewMockFileSystem()
@@ -30,7 +30,7 @@ func TestExecuteDefaultTemplate(t *testing.T) {
 	snaps.MatchSnapshot(t, body)
 }
 
-func TestExecuteDefaultTemplate_WithChangelogPreview(t *testing.T) {
+func TestPRRenderer_RenderBody_WithChangelogPreview(t *testing.T) {
 	t.Cleanup(resetChangelogTemplateCache)
 
 	fs := filesystem.NewMockFileSystem()
@@ -47,7 +47,7 @@ func TestExecuteDefaultTemplate_WithChangelogPreview(t *testing.T) {
 	snaps.MatchSnapshot(t, body)
 }
 
-func TestExecuteDefaultTemplate_WithRelatedPRs(t *testing.T) {
+func TestPRRenderer_RenderBody_WithRelatedPRs(t *testing.T) {
 	t.Cleanup(resetChangelogTemplateCache)
 
 	fs := filesystem.NewMockFileSystem()
@@ -68,7 +68,7 @@ func TestExecuteDefaultTemplate_WithRelatedPRs(t *testing.T) {
 	snaps.MatchSnapshot(t, body)
 }
 
-func TestExecuteDefaultTemplate_WithCustomTemplates(t *testing.T) {
+func TestPRRenderer_RenderXXX_WithCustomTemplates(t *testing.T) {
 	t.Cleanup(resetChangelogTemplateCache)
 
 	fs := filesystem.NewMockFileSystem()
