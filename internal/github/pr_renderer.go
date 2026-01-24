@@ -12,9 +12,9 @@ import (
 )
 
 type TemplateData struct {
-	Project          string
-	Version          string
-	CurrentVersion   string
+	Project string
+	Version string
+	// CurrentVersion   string
 	ChangelogPreview string
 	RelatedPRs       []RelatedPRInfo
 }

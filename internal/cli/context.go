@@ -137,6 +137,15 @@ func (b *projectContextBuilder) BuildFromTreeFile(tree TreeOutput) ([]*models.Pr
 	return contexts, nil
 }
 
+func (b *projectContextBuilder) BuildFromEnv() (*models.ProjectContext, error) {
+	ctx, err := readProjectContextFromEnv()
+	if err != nil {
+		return nil, err
+	}
+
+	return ctx, nil
+}
+
 func (b *projectContextBuilder) BuildFromWorkspace(ws *workspace.Workspace) ([]*models.ProjectContext, error) {
 	csManager := changeset.NewManager(b.fs, ws.ChangesetDir())
 	allChangesets, err := csManager.ReadAll()
@@ -255,6 +264,27 @@ func filterContexts(contexts []*models.ProjectContext, filters []models.FilterTy
 			}
 		}
 		if matches {
+			filtered = append(filtered, ctx)
+		}
+	}
+
+	return filtered, nil
+}
+
+// filterContextsByName filters contexts by project names.
+func filterContextsByName(contexts []*models.ProjectContext, names []string) ([]*models.ProjectContext, error) {
+	if len(names) == 0 {
+		return contexts, nil
+	}
+
+	nameSet := make(map[string]struct{})
+	for _, name := range names {
+		nameSet[name] = struct{}{}
+	}
+
+	filtered := make([]*models.ProjectContext, 0, len(contexts))
+	for _, ctx := range contexts {
+		if _, ok := nameSet[ctx.Project]; ok {
 			filtered = append(filtered, ctx)
 		}
 	}
