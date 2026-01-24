@@ -56,10 +56,13 @@ Environment variables are also set: PROJECT, PROJECT_PATH, CURRENT_VERSION, LATE
   # Publish all outdated projects
   changeset each --filter=outdated-versions -- changeset publish --owner org --repo repo
 
+  # Publish project1 only if outdated
+  changeset each --filter=outdated-versions --projects=project1 -- changeset publish --owner org --repo repo
+
   # Custom script
   changeset each --filter=open-changesets -- bash -c 'echo "Releasing $PROJECT"'
 
-  # Link PRs using tree file (after versioning)
+  # Custom script with context from before the versioning (captured via tree file)
   changeset each --from-tree-file=/tmp/tree.json -- bash -c 'echo "Releasing $PROJECT"'`,
 		RunE: cmd.Run,
 	}
@@ -68,7 +71,7 @@ Environment variables are also set: PROJECT, PROJECT_PATH, CURRENT_VERSION, LATE
 		"Filter projects (open-changesets, outdated-versions, has-version, no-version, unchanged, all)")
 	cobraCmd.Flags().StringVar(&cmd.fromTreeFile, "from-tree-file", "",
 		"Read projects from a tree JSON file instead of workspace filters")
-	cobraCmd.Flags().StringVar(&cmd.projects, "projects", "", "Project names (to limit execution), comma-separated")
+	cobraCmd.Flags().StringVar(&cmd.projects, "projects", "", "Select specific projects, comma-separated")
 
 	return cobraCmd
 }
