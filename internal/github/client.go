@@ -3,6 +3,7 @@ package github
 import (
 	"context"
 	"fmt"
+	"log"
 	"os"
 
 	"github.com/google/go-github/v57/github"
@@ -165,6 +166,16 @@ func convertPullRequest(pr *github.PullRequest) *PullRequest {
 	return result
 }
 
+func filterSlices[T any](input []T, predicate func(T) bool) []T {
+	result := make([]T, 0, len(input))
+	for _, item := range input {
+		if predicate(item) {
+			result = append(result, item)
+		}
+	}
+	return result
+}
+
 func (c *Client) GetPullRequestByHead(ctx context.Context, owner, repo, headBranch string) (*PullRequest, error) {
 	prs, _, err := c.client.PullRequests.List(ctx, owner, repo, &github.PullRequestListOptions{
 		Head: headBranch,
@@ -172,6 +183,10 @@ func (c *Client) GetPullRequestByHead(ctx context.Context, owner, repo, headBran
 	if err != nil {
 		return nil, fmt.Errorf("failed to list pull requests with head %s: %w", headBranch, err)
 	}
+
+	prs = filterSlices(prs, func(pr *github.PullRequest) bool {
+		return pr.GetHead().GetRef() == headBranch && pr.GetState() != "closed"
+	})
 
 	if len(prs) == 0 {
 		return nil, nil
