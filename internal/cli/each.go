@@ -23,6 +23,7 @@ type EachCommand struct {
 	filters      []string
 	command      []string
 	fromTreeFile string
+	projects     string
 
 	stdoutWriter io.Writer
 }
@@ -55,10 +56,13 @@ Environment variables are also set: PROJECT, PROJECT_PATH, CURRENT_VERSION, LATE
   # Publish all outdated projects
   changeset each --filter=outdated-versions -- changeset publish --owner org --repo repo
 
+  # Publish project1 only if outdated
+  changeset each --filter=outdated-versions --projects=project1 -- changeset publish --owner org --repo repo
+
   # Custom script
   changeset each --filter=open-changesets -- bash -c 'echo "Releasing $PROJECT"'
 
-  # Link PRs using tree file (after versioning)
+  # Custom script with context from before the versioning (captured via tree file)
   changeset each --from-tree-file=/tmp/tree.json -- bash -c 'echo "Releasing $PROJECT"'`,
 		RunE: cmd.Run,
 	}
@@ -67,6 +71,7 @@ Environment variables are also set: PROJECT, PROJECT_PATH, CURRENT_VERSION, LATE
 		"Filter projects (open-changesets, outdated-versions, has-version, no-version, unchanged, all)")
 	cobraCmd.Flags().StringVar(&cmd.fromTreeFile, "from-tree-file", "",
 		"Read projects from a tree JSON file instead of workspace filters")
+	cobraCmd.Flags().StringVar(&cmd.projects, "projects", "", "Select specific projects, comma-separated")
 
 	return cobraCmd
 }
@@ -90,10 +95,10 @@ func (c *EachCommand) Run(cmd *cobra.Command, args []string) error {
 		return c.runFromTreeFile()
 	}
 
-	return c.runFromFilter()
+	return c.runFromWorkspace()
 }
 
-func (c *EachCommand) runFromFilter() error {
+func (c *EachCommand) runFromWorkspace() error {
 	ws := workspace.New(c.fs)
 	if err := ws.Detect(); err != nil {
 		return fmt.Errorf("failed to detect workspace: %w", err)
@@ -105,6 +110,11 @@ func (c *EachCommand) runFromFilter() error {
 		return fmt.Errorf("failed to build project contexts: %w", err)
 	}
 
+	if len(contexts) == 0 {
+		fmt.Fprintln(c.getStdoutWriter(), "No projects found in workspace")
+		return nil
+	}
+
 	filterTypes, err := parseFilters(c.filters)
 	if err != nil {
 		return fmt.Errorf("failed to parse filters: %w", err)
@@ -113,6 +123,15 @@ func (c *EachCommand) runFromFilter() error {
 	filtered, err := filterContexts(contexts, filterTypes)
 	if err != nil {
 		return fmt.Errorf("failed to filter projects: %w", err)
+	}
+
+	if c.projects != "" {
+		projects := strings.Split(c.projects, ",")
+
+		filtered, err = filterContextsByName(filtered, projects)
+		if err != nil {
+			return fmt.Errorf("failed to filter projects by name: %w", err)
+		}
 	}
 
 	if len(filtered) == 0 {
@@ -139,7 +158,36 @@ func (c *EachCommand) runFromTreeFile() error {
 		return fmt.Errorf("failed to build project contexts from tree file: %w", err)
 	}
 
-	return c.executeForContexts(contexts)
+	if len(contexts) == 0 {
+		fmt.Fprintln(c.getStdoutWriter(), "No projects found in tree file")
+		return nil
+	}
+
+	filterTypes, err := parseFilters(c.filters)
+	if err != nil {
+		return fmt.Errorf("failed to parse filters: %w", err)
+	}
+
+	filtered, err := filterContexts(contexts, filterTypes)
+	if err != nil {
+		return fmt.Errorf("failed to filter projects: %w", err)
+	}
+
+	if c.projects != "" {
+		projects := strings.Split(c.projects, ",")
+
+		filtered, err = filterContextsByName(filtered, projects)
+		if err != nil {
+			return fmt.Errorf("failed to filter projects by name: %w", err)
+		}
+	}
+
+	if len(filtered) == 0 {
+		fmt.Fprintln(c.getStdoutWriter(), "No projects match the specified filters")
+		return nil
+	}
+
+	return c.executeForContexts(filtered)
 }
 
 func (c *EachCommand) executeForContexts(contexts []*models.ProjectContext) error {

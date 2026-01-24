@@ -1,0 +1,62 @@
+
+[TestPRRenderer_RenderXXX - 1]
+🚀 Release auth v1.2.0
+---
+
+[TestPRRenderer_RenderXXX - 2]
+This PR was automatically generated for **auth**.
+
+## 📦 What happens when you merge?
+- Version bumped to **1.2.0**
+- Changelog updated
+- Changesets consumed
+- Publish workflow creates GitHub release: `auth@1.2.0`
+
+---
+
+[TestPRRenderer_RenderBody_WithChangelogPreview - 1]
+This PR was automatically generated for **auth**.
+
+## 📋 Changes
+
+### Minor Changes
+- Add OAuth2 support
+
+## 📦 What happens when you merge?
+- Version bumped to **1.2.0**
+- Changelog updated
+- Changesets consumed
+- Publish workflow creates GitHub release: `auth@1.2.0`
+
+---
+
+[TestPRRenderer_RenderBody_WithRelatedPRs - 1]
+This PR was automatically generated for **auth**.
+
+## 📋 Changes
+
+### Minor Changes
+- Add OAuth2 support
+
+## 🔗 Related Release PRs
+
+This release is part of a coordinated change:
+- #123 Release auth v1.2.0
+- #124 Release api v2.1.0
+
+
+## 📦 What happens when you merge?
+- Version bumped to **1.2.0**
+- Changelog updated
+- Changesets consumed
+- Publish workflow creates GitHub release: `auth@1.2.0`
+
+---
+
+[TestPRRenderer_RenderXXX_WithCustomTemplates - 1]
+Let's go, let's release auth at v1.2.0
+---
+
+[TestPRRenderer_RenderXXX_WithCustomTemplates - 2]
+Release already! auth v1.2.0
+---
