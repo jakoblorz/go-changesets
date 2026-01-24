@@ -145,9 +145,12 @@ func convertPullRequest(pr *github.PullRequest) *PullRequest {
 	result := &PullRequest{
 		Number:  pr.GetNumber(),
 		Title:   pr.GetTitle(),
+		Body:    pr.GetBody(),
 		HTMLURL: pr.GetHTMLURL(),
 		State:   pr.GetState(),
 		Merged:  pr.GetMerged(),
+		Head:    pr.GetHead().GetRef(),
+		Base:    pr.GetBase().GetRef(),
 		Labels:  extractLabels(pr.Labels),
 	}
 
@@ -160,6 +163,75 @@ func convertPullRequest(pr *github.PullRequest) *PullRequest {
 	}
 
 	return result
+}
+
+func (c *Client) GetPullRequestByHead(ctx context.Context, owner, repo, headBranch string) (*PullRequest, error) {
+	prs, _, err := c.client.PullRequests.List(ctx, owner, repo, &github.PullRequestListOptions{
+		Head: headBranch,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to list pull requests with head %s: %w", headBranch, err)
+	}
+
+	if len(prs) == 0 {
+		return nil, nil
+	}
+
+	return convertPullRequest(prs[0]), nil
+}
+
+func (c *Client) CreatePullRequest(ctx context.Context, owner, repo string, req *CreatePullRequestRequest) (*PullRequest, error) {
+	title := req.Title
+	body := req.Body
+	head := req.Head
+	base := req.Base
+	draft := req.Draft
+	newPR := &github.NewPullRequest{
+		Title: &title,
+		Body:  &body,
+		Head:  &head,
+		Base:  &base,
+		Draft: &draft,
+	}
+
+	pr, _, err := c.client.PullRequests.Create(ctx, owner, repo, newPR)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create pull request: %w", err)
+	}
+
+	return convertPullRequest(pr), nil
+}
+
+func (c *Client) UpdatePullRequest(ctx context.Context, owner, repo string, number int, req *UpdatePullRequestRequest) (*PullRequest, error) {
+	title := req.Title
+	body := req.Body
+	pr, _, err := c.client.PullRequests.Edit(ctx, owner, repo, number, &github.PullRequest{
+		Title: &title,
+		Body:  &body,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to update pull request #%d: %w", number, err)
+	}
+
+	return convertPullRequest(pr), nil
+}
+
+func (c *Client) ClosePullRequest(ctx context.Context, owner, repo string, number int) error {
+	_, _, err := c.client.PullRequests.Merge(ctx, owner, repo, number, "", &github.PullRequestOptions{
+		MergeMethod: "close",
+	})
+	if err != nil {
+		return fmt.Errorf("failed to close pull request #%d: %w", number, err)
+	}
+	return nil
+}
+
+func (c *Client) DeleteBranch(ctx context.Context, owner, repo, branch string) error {
+	_, err := c.client.Git.DeleteRef(ctx, owner, repo, "heads/"+branch)
+	if err != nil {
+		return fmt.Errorf("failed to delete branch %s: %w", branch, err)
+	}
+	return nil
 }
 
 func extractLabels(labels []*github.Label) []string {
