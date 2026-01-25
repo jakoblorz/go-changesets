@@ -27,7 +27,7 @@ type resolvedProject struct {
 	Project   *models.Project
 }
 
-func (resolved *resolvedProject) ToCurrentProjectContext(ws *workspace.Workspace, fs filesystem.FileSystem, git git.GitClient) (ctx *models.ProjectContext, err error) {
+func (resolved *resolvedProject) ToCurrentProjectContext(fs filesystem.FileSystem, git git.GitClient) (ctx *models.ProjectContext, err error) {
 	if resolved.ViaEach {
 		ctx, err = newProjectContextBuilder(fs, git).BuildFromEnv()
 		if err != nil {
@@ -47,7 +47,7 @@ func (resolved *resolvedProject) ToCurrentProjectContext(ws *workspace.Workspace
 		// we are on the "latest" version after 'changeset version', so we are not "outdated"
 		ctx.IsOutdated = false
 	} else {
-		ctxs, err := newProjectContextBuilder(fs, git).BuildFromWorkspace(ws)
+		ctxs, err := newProjectContextBuilder(fs, git).BuildFromWorkspace(resolved.Workspace)
 		if err != nil {
 			return nil, fmt.Errorf("failed to build project contexts: %w", err)
 		}

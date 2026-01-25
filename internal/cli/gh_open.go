@@ -6,7 +6,6 @@ import (
 	"github.com/jakoblorz/go-changesets/internal/filesystem"
 	"github.com/jakoblorz/go-changesets/internal/git"
 	"github.com/jakoblorz/go-changesets/internal/github"
-	"github.com/jakoblorz/go-changesets/internal/workspace"
 	"github.com/spf13/cobra"
 )
 
@@ -68,12 +67,7 @@ func (c *GHOpenCommand) Run(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to resolve project: %w", err)
 	}
 
-	ws := workspace.New(c.fs)
-	if err := ws.Detect(); err != nil {
-		return fmt.Errorf("failed to detect workspace: %w", err)
-	}
-
-	ctx, err := resolved.ToCurrentProjectContext(ws, c.fs, c.git)
+	ctx, err := resolved.ToCurrentProjectContext(c.fs, c.git)
 	if err != nil {
 		return fmt.Errorf("failed to obtain project context: %w", err)
 	}
