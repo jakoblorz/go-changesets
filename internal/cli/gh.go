@@ -26,7 +26,7 @@ Includes commands for creating, linking, and closing release PRs.`,
 	}
 	prCmd.AddCommand(NewGHOpenCommand(fs, git, ghClient))
 	prCmd.AddCommand(NewGHLinkCommand(fs, git, ghClient))
-	// prCmd.AddCommand(NewGHCloseCommand(fs, ghClient))
+	prCmd.AddCommand(NewGHCloseCommand(fs, git, ghClient))
 
 	cmd.AddCommand(prCmd)
 

@@ -138,13 +138,16 @@ func (c *GHLinkCommand) Run(cmd *cobra.Command, args []string) error {
 
 	pr, err := c.ghClient.GetPullRequestByHead(cmd.Context(), owner, repo, branchName)
 	if err != nil {
-		fmt.Printf("⚠️  Failed to get open PR for %s (skipping): %v\n", ctx.Project, err)
+		return fmt.Errorf("failed to get open PR for %s: %w", ctx.Project, err)
+	}
+	if pr == nil {
+		fmt.Printf("⚠️  No open PR found for %s, skipping\n", ctx.Project)
 		return nil
 	}
 
 	group := tree.GetGroupForProject(ctx.Project)
 	if group == nil {
-		fmt.Printf("⚠️  Failed to get group for project %s (skipping)\n", ctx.Project)
+		fmt.Printf("⚠️  Failed to get group for project %s, skipping\n", ctx.Project)
 		return nil
 	}
 
