@@ -28,7 +28,7 @@ func NewGHOpenCommand(fs filesystem.FileSystem, git git.GitClient, ghClient gith
 		Long: `Create or update a release PR for the current project.
 
 This command should be run after 'changeset version' and git commit/push.
-Uses .changeset/github_pr_body.tmpl and/or .changeset/github_pr_title.tmpl if present, otherwise uses a default template.`,
+Uses .changeset/pr-description.tmpl and/or .changeset/pr-title.tmpl if present, otherwise uses a default template.`,
 		Example: `  # Create release PR for current project (when run via 'changeset each', project is auto-detected)
   changeset gh pr open --owner myorg --repo myrepo
 
