@@ -72,8 +72,8 @@ func TestPRRenderer_RenderXXX_WithCustomTemplates(t *testing.T) {
 	t.Cleanup(resetChangelogTemplateCache)
 
 	fs := filesystem.NewMockFileSystem()
-	fs.AddFile("/workspace/.changeset/github_pr_title.tmpl", []byte(`Let's go, let's release {{.Project}} at v{{.Version}}`))
-	fs.AddFile("/workspace/.changeset/github_pr_body.tmpl", []byte(`Release already! {{.Project}} v{{.Version}}`))
+	fs.AddFile("/workspace/.changeset/pr-title.tmpl", []byte(`Let's go, let's release {{.Project}} at v{{.Version}}`))
+	fs.AddFile("/workspace/.changeset/pr-description.tmpl", []byte(`Release already! {{.Project}} v{{.Version}}`))
 
 	data := TemplateData{
 		Project:          "auth",

@@ -57,7 +57,7 @@ func getBodyTemplate(fs filesystem.FileSystem, projectRoot string) (*template.Te
 	path := findCustomBodyTemplate(fs, projectRoot)
 	cacheKey := path
 	if cacheKey == "" {
-		cacheKey = "__default_github_pr_body__"
+		cacheKey = "__default_pr-description__"
 	}
 
 	templateCacheLock.Lock()
@@ -74,9 +74,9 @@ func getBodyTemplate(fs filesystem.FileSystem, projectRoot string) (*template.Te
 		if readErr != nil {
 			return nil, fmt.Errorf("failed to read github pr body template: %w", readErr)
 		}
-		parsed, err = template.New("github_pr_body").Funcs(sprig.TxtFuncMap()).Parse(string(data))
+		parsed, err = template.New("pr-description").Funcs(sprig.TxtFuncMap()).Parse(string(data))
 	} else {
-		parsed, err = template.New("github_pr_body").Funcs(sprig.TxtFuncMap()).Parse(defaultBodyTemplate)
+		parsed, err = template.New("pr-description").Funcs(sprig.TxtFuncMap()).Parse(defaultBodyTemplate)
 	}
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse github pr body template: %w", err)
@@ -92,7 +92,7 @@ func getBodyTemplate(fs filesystem.FileSystem, projectRoot string) (*template.Te
 func findCustomBodyTemplate(fs filesystem.FileSystem, start string) string {
 	dir := start
 	for {
-		templatePath := filepath.Join(dir, ".changeset", "github_pr_body.tmpl")
+		templatePath := filepath.Join(dir, ".changeset", "pr-description.tmpl")
 		if fs.Exists(templatePath) {
 			return templatePath
 		}
@@ -111,7 +111,7 @@ func getTitleTemplate(fs filesystem.FileSystem, projectRoot string) (*template.T
 	path := findCustomTitleTemplate(fs, projectRoot)
 	cacheKey := path
 	if cacheKey == "" {
-		cacheKey = "__default_github_pr_title__"
+		cacheKey = "__default_pr-title__"
 	}
 
 	templateCacheLock.Lock()
@@ -128,9 +128,9 @@ func getTitleTemplate(fs filesystem.FileSystem, projectRoot string) (*template.T
 		if readErr != nil {
 			return nil, fmt.Errorf("failed to read github pr title template: %w", readErr)
 		}
-		parsed, err = template.New("github_pr_title").Funcs(sprig.TxtFuncMap()).Parse(string(data))
+		parsed, err = template.New("pr-title").Funcs(sprig.TxtFuncMap()).Parse(string(data))
 	} else {
-		parsed, err = template.New("github_pr_title").Funcs(sprig.TxtFuncMap()).Parse(DefaultTitleTemplate)
+		parsed, err = template.New("pr-title").Funcs(sprig.TxtFuncMap()).Parse(DefaultTitleTemplate)
 	}
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse github pr title template: %w", err)
@@ -146,7 +146,7 @@ func getTitleTemplate(fs filesystem.FileSystem, projectRoot string) (*template.T
 func findCustomTitleTemplate(fs filesystem.FileSystem, start string) string {
 	dir := start
 	for {
-		templatePath := filepath.Join(dir, ".changeset", "github_pr_title.tmpl")
+		templatePath := filepath.Join(dir, ".changeset", "pr-title.tmpl")
 		if fs.Exists(templatePath) {
 			return templatePath
 		}
