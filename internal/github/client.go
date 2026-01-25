@@ -231,8 +231,8 @@ func (c *Client) UpdatePullRequest(ctx context.Context, owner, repo string, numb
 }
 
 func (c *Client) ClosePullRequest(ctx context.Context, owner, repo string, number int) error {
-	_, _, err := c.client.PullRequests.Merge(ctx, owner, repo, number, "", &github.PullRequestOptions{
-		MergeMethod: "close",
+	_, _, err := c.client.PullRequests.Edit(ctx, owner, repo, number, &github.PullRequest{
+		State: github.String("closed"),
 	})
 	if err != nil {
 		return fmt.Errorf("failed to close pull request #%d: %w", number, err)
