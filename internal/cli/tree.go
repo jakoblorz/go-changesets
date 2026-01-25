@@ -51,6 +51,7 @@ type TreeOutput struct {
 }
 
 func (t *TreeOutput) GetGroupForProject(projectName string) *ChangesetGroup {
+	// TODO: can there be multiple groups for same project?
 	for _, group := range t.Groups {
 		for _, project := range group.Projects {
 			if project.Name == projectName {

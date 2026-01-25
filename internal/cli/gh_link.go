@@ -48,17 +48,6 @@ This command uses pre-captured tree data to link related PRs together.`,
 	return cobraCmd
 }
 
-func filterSlices[T any](slice []T, predicate func(T) bool) []T {
-	result := make([]T, 0, len(slice))
-	for _, item := range slice {
-		if predicate(item) {
-			result = append(result, item)
-		}
-	}
-
-	return result
-}
-
 func (c *GHLinkCommand) Run(cmd *cobra.Command, args []string) error {
 	owner, _ := cmd.Flags().GetString("owner")
 	repo, _ := cmd.Flags().GetString("repo")
@@ -169,6 +158,10 @@ func (c *GHLinkCommand) Run(cmd *cobra.Command, args []string) error {
 				Version: entry.Version,
 			})
 		}
+	}
+	if len(relatedPRs) == 0 {
+		fmt.Printf("ℹ️  No related PRs found for %s\n", ctx.Project)
+		return nil
 	}
 
 	body, err := github.NewPRRenderer(c.fs).RenderBody(github.TemplateData{
