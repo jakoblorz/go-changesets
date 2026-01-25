@@ -8,8 +8,6 @@ import (
 	"github.com/jakoblorz/go-changesets/internal/filesystem"
 	"github.com/jakoblorz/go-changesets/internal/git"
 	"github.com/jakoblorz/go-changesets/internal/github"
-	"github.com/jakoblorz/go-changesets/internal/models"
-	"github.com/jakoblorz/go-changesets/internal/versioning"
 	"github.com/jakoblorz/go-changesets/internal/workspace"
 	"github.com/spf13/cobra"
 )
@@ -91,39 +89,9 @@ func (c *GHLinkCommand) Run(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to detect workspace: %w", err)
 	}
 
-	var ctx *models.ProjectContext
-	if resolved.ViaEach {
-		ctx, err = newProjectContextBuilder(c.fs, c.git).BuildFromEnv()
-		if err != nil {
-			return fmt.Errorf("failed to build project context from environment: %w", err)
-		}
-
-		// when receiving context via each, we nee to update a few fields in case they are outdated (when run via each --from-tree-file, etc)
-
-		// always read in the current version, even if set via each. we need the "new" version (after running 'version') for the PR title/body
-		versionStore := versioning.NewVersionStore(c.fs, resolved.Project.Type)
-		if currentVer, err := versionStore.Read(resolved.Project.RootPath); err == nil {
-			ctx.CurrentVersion = currentVer.String()
-		} else {
-			ctx.CurrentVersion = "0.0.0"
-		}
-
-		// we are on the "latest" version after 'changeset version', so we are not "outdated"
-		ctx.IsOutdated = false
-	} else {
-		ctxs, err := newProjectContextBuilder(c.fs, c.git).BuildFromWorkspace(ws)
-		if err != nil {
-			return fmt.Errorf("failed to build project contexts: %w", err)
-		}
-
-		ctxs, err = filterContextsByName(ctxs, []string{resolved.Name})
-		if err != nil {
-			return fmt.Errorf("failed to filter project contexts: %w", err)
-		}
-		if len(ctxs) != 1 {
-			return fmt.Errorf("project context for %s not found", resolved.Name)
-		}
-		ctx = ctxs[0]
+	ctx, err := resolved.ToCurrentProjectContext(ws, c.fs, c.git)
+	if err != nil {
+		return fmt.Errorf("failed to obtain project context: %w", err)
 	}
 
 	branchName, err := c.git.GetCurrentBranch()

@@ -27,6 +27,44 @@ type resolvedProject struct {
 	Project   *models.Project
 }
 
+func (resolved *resolvedProject) ToCurrentProjectContext(ws *workspace.Workspace, fs filesystem.FileSystem, git git.GitClient) (ctx *models.ProjectContext, err error) {
+	if resolved.ViaEach {
+		ctx, err = newProjectContextBuilder(fs, git).BuildFromEnv()
+		if err != nil {
+			return nil, fmt.Errorf("failed to build project context from environment: %w", err)
+		}
+
+		// when receiving context via each, we nee to update a few fields in case they are outdated (when run via each --from-tree-file, etc)
+
+		// always read in the current version, even if set via each. we need the "new" version (after running 'version') for the PR title/body
+		versionStore := versioning.NewVersionStore(fs, resolved.Project.Type)
+		if currentVer, err := versionStore.Read(resolved.Project.RootPath); err == nil {
+			ctx.CurrentVersion = currentVer.String()
+		} else {
+			ctx.CurrentVersion = "0.0.0"
+		}
+
+		// we are on the "latest" version after 'changeset version', so we are not "outdated"
+		ctx.IsOutdated = false
+	} else {
+		ctxs, err := newProjectContextBuilder(fs, git).BuildFromWorkspace(ws)
+		if err != nil {
+			return nil, fmt.Errorf("failed to build project contexts: %w", err)
+		}
+
+		ctxs, err = filterContextsByName(ctxs, []string{resolved.Name})
+		if err != nil {
+			return nil, fmt.Errorf("failed to filter project contexts: %w", err)
+		}
+		if len(ctxs) != 1 {
+			return nil, fmt.Errorf("project context for %s not found", resolved.Name)
+		}
+		ctx = ctxs[0]
+	}
+
+	return
+}
+
 func resolveProjectName(projectFlag string) (string, bool, error) {
 	if projectFlag != "" {
 		return projectFlag, false, nil
