@@ -1,7 +1,9 @@
 package cli
 
 import (
+	"encoding/json"
 	"fmt"
+	"os"
 
 	"github.com/jakoblorz/go-changesets/internal/filesystem"
 	"github.com/jakoblorz/go-changesets/internal/git"
@@ -12,46 +14,44 @@ import (
 	"github.com/spf13/cobra"
 )
 
-type GHOpenCommand struct {
+type GHLinkCommand struct {
 	fs       filesystem.FileSystem
-	ghClient github.GitHubClient
 	git      git.GitClient
+	ghClient github.GitHubClient
 }
 
-func NewGHOpenCommand(fs filesystem.FileSystem, git git.GitClient, ghClient github.GitHubClient) *cobra.Command {
-	cmd := &GHOpenCommand{
+func NewGHLinkCommand(fs filesystem.FileSystem, git git.GitClient, ghClient github.GitHubClient) *cobra.Command {
+	cmd := &GHLinkCommand{
 		fs:       fs,
-		ghClient: ghClient,
 		git:      git,
+		ghClient: ghClient,
 	}
 
 	cobraCmd := &cobra.Command{
-		Use:   "open",
-		Short: "Create or update a release PR",
-		Long: `Create or update a release PR for the current project.
+		Use:   "link",
+		Short: "Link related release PRs together",
+		Long: `Link related release PRs together using changeset tree data.
 
-This command should be run after 'changeset version' and git commit/push.
-Uses .changeset/github_pr_body.tmpl and/or .changeset/github_pr_title.tmpl if present, otherwise uses a default template.`,
-		Example: `  # Create release PR for current project (when run via 'changeset each', project is auto-detected)
-  changeset gh pr open --owner myorg --repo myrepo
+This command uses pre-captured tree data to link related PRs together.`,
+		Example: `  # Link PRs using default paths
+  changeset gh pr link --owner myorg --repo myrepo
 
-  # For specific project
-  changeset gh pr open --owner myorg --repo myrepo --project auth`,
+  # With custom paths
+  changeset gh pr link --owner myorg --repo myrepo --tree-file /tmp/tree.json --mapping-file /tmp/pr-mapping.json`,
 		RunE: cmd.Run,
 	}
 
-	cobraCmd.Flags().String("base", "main", "Base branch for PR")
-	cobraCmd.Flags().String("labels", "release,automated", "Comma-separated labels for PR")
+	cobraCmd.Flags().String("tree-file", "/tmp/tree.json", "Path to tree JSON file from 'changeset tree --format json'")
 	cobraCmd.Flags().String("mapping-file", "/tmp/pr-mapping.json", "Path to PR mapping file")
 	cobraCmd.Flags().String("project", "", "Project name (required unless run via 'changeset each')")
 
 	return cobraCmd
 }
 
-func (c *GHOpenCommand) Run(cmd *cobra.Command, args []string) error {
+func (c *GHLinkCommand) Run(cmd *cobra.Command, args []string) error {
 	owner, _ := cmd.Flags().GetString("owner")
 	repo, _ := cmd.Flags().GetString("repo")
-	base, _ := cmd.Flags().GetString("base")
+	treeFile, _ := cmd.Flags().GetString("tree-file")
 	mappingFile, _ := cmd.Flags().GetString("mapping-file")
 	projectFlag, _ := cmd.Flags().GetString("project")
 
@@ -60,6 +60,22 @@ func (c *GHOpenCommand) Run(cmd *cobra.Command, args []string) error {
 	}
 	if repo == "" {
 		return fmt.Errorf("--repo is required")
+	}
+	if treeFile == "" {
+		return fmt.Errorf("--tree-file cannot be empty")
+	}
+	if mappingFile == "" {
+		return fmt.Errorf("--mapping-file cannot be empty")
+	}
+
+	treeData, err := os.ReadFile(treeFile)
+	if err != nil {
+		return fmt.Errorf("failed to read tree file: %w", err)
+	}
+
+	var tree TreeOutput
+	if err := json.Unmarshal(treeData, &tree); err != nil {
+		return fmt.Errorf("failed to parse tree JSON: %w", err)
 	}
 
 	resolved, err := resolveProject(c.fs, projectFlag)
@@ -115,10 +131,44 @@ func (c *GHOpenCommand) Run(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to get current git branch: %w", err)
 	}
 
+	mapping, err := github.ReadPRMapping(mappingFile)
+	if err != nil {
+		return fmt.Errorf("failed to read mapping file: %w", err)
+	}
+
+	pr, err := c.ghClient.GetPullRequestByHead(cmd.Context(), owner, repo, branchName)
+	if err != nil {
+		fmt.Printf("⚠️  Failed to get open PR for %s (skipping): %v\n", ctx.Project, err)
+		return nil
+	}
+
+	group := tree.GetGroupForProject(ctx.Project)
+	if group == nil {
+		fmt.Printf("⚠️  Failed to get group for project %s (skipping)\n", ctx.Project)
+		return nil
+	}
+
+	var relatedPRs []github.RelatedPRInfo
+	for _, proj := range group.Projects {
+		entry, ok := mapping.Projects[proj.Name]
+		if ok && proj.Name != ctx.Project {
+			relatedPRs = append(relatedPRs, github.RelatedPRInfo{
+				Number:  entry.Number,
+				Project: entry.Project,
+				Version: entry.Version,
+			})
+		}
+	}
+	if len(relatedPRs) == 0 {
+		fmt.Printf("ℹ️  No related PRs found for %s\n", ctx.Project)
+		return nil
+	}
+
 	body, err := github.NewPRRenderer(c.fs).RenderBody(github.TemplateData{
 		Project:          ctx.Project,
 		Version:          ctx.CurrentVersion,
 		ChangelogPreview: ctx.ChangelogPreview,
+		RelatedPRs:       relatedPRs,
 	}, ctx.ProjectPath)
 	if err != nil {
 		return fmt.Errorf("failed to build PR body: %w", err)
@@ -128,60 +178,22 @@ func (c *GHOpenCommand) Run(cmd *cobra.Command, args []string) error {
 		Project:          ctx.Project,
 		Version:          ctx.CurrentVersion,
 		ChangelogPreview: ctx.ChangelogPreview,
+		RelatedPRs:       relatedPRs,
 	}, ctx.ProjectPath)
 	if err != nil {
 		return fmt.Errorf("failed to build PR title: %w", err)
 	}
 
-	var pr *github.PullRequest
-	existingPR, err := c.ghClient.GetPullRequestByHead(cmd.Context(), owner, repo, branchName)
+	pr, err = c.ghClient.UpdatePullRequest(cmd.Context(), owner, repo, pr.Number, &github.UpdatePullRequestRequest{
+		Title: title,
+		Body:  body,
+	})
 	if err != nil {
-		return fmt.Errorf("failed to check for existing PR: %w", err)
+		fmt.Printf("⚠️  Failed to update PR #%d for %s: %v\n", pr.Number, ctx.Project, err)
+		return nil
 	}
 
-	if existingPR != nil {
-		pr, err = c.ghClient.UpdatePullRequest(cmd.Context(), owner, repo, existingPR.Number, &github.UpdatePullRequestRequest{
-			Title: title,
-			Body:  body,
-		})
-		if err != nil {
-			return fmt.Errorf("failed to update PR: %w", err)
-		}
-		fmt.Printf("✓ Updated PR #%d for %s\n", pr.Number, ctx.Project)
-	} else {
-		pr, err = c.ghClient.CreatePullRequest(cmd.Context(), owner, repo, &github.CreatePullRequestRequest{
-			Title: title,
-			Body:  body,
-			Head:  branchName,
-			Base:  base,
-			Draft: false,
-		})
-		if err != nil {
-			return fmt.Errorf("failed to create PR: %w", err)
-		}
-		fmt.Printf("✓ Created PR #%d for %s\n", pr.Number, ctx.Project)
-	}
-
-	if err := c.updateMappingFile(mappingFile, ctx.Project, ctx.CurrentVersion, pr); err != nil {
-		return fmt.Errorf("failed to update mapping file: %w", err)
-	}
-
-	fmt.Printf("  PR URL: %s\n", pr.HTMLURL)
+	fmt.Printf("✓ Updated PR #%d for %s\n", pr.Number, ctx.Project)
 
 	return nil
-}
-
-func (c *GHOpenCommand) updateMappingFile(path, project, version string, pr *github.PullRequest) error {
-	mapping, err := github.ReadPRMapping(path)
-	if err != nil {
-		mapping = github.NewPRMapping()
-	}
-
-	mapping.Set(project, github.PullRequestInfo{
-		PullRequest: *pr,
-		Version:     version,
-		Project:     project,
-	})
-
-	return mapping.Write(path)
 }

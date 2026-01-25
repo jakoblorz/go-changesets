@@ -50,6 +50,19 @@ type TreeOutput struct {
 	Groups []ChangesetGroup `json:"groups"`
 }
 
+func (t *TreeOutput) GetGroupForProject(projectName string) *ChangesetGroup {
+	// TODO: can there be multiple groups for same project?
+	for _, group := range t.Groups {
+		for _, project := range group.Projects {
+			if project.Name == projectName {
+				return &group
+			}
+		}
+	}
+
+	return nil
+}
+
 // NewTreeCommand creates a new tree command
 func NewTreeCommand(fs filesystem.FileSystem, gitClient git.GitClient) *cobra.Command {
 	cmd := &TreeCommand{
