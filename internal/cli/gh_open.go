@@ -177,9 +177,10 @@ func (c *GHOpenCommand) updateMappingFile(path, project, version string, pr *git
 		mapping = github.NewPRMapping()
 	}
 
-	mapping.Set(project, github.PRProjectInfo{
+	mapping.Set(project, github.PullRequestInfo{
 		PullRequest: *pr,
 		Version:     version,
+		Project:     project,
 	})
 
 	return mapping.Write(path)
