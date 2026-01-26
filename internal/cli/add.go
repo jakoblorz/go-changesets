@@ -3,7 +3,6 @@ package cli
 import (
 	"fmt"
 
-	tea "github.com/charmbracelet/bubbletea"
 	"github.com/jakoblorz/go-changesets/internal/filesystem"
 	"github.com/jakoblorz/go-changesets/internal/tui/add"
 	"github.com/jakoblorz/go-changesets/internal/workspace"
@@ -37,21 +36,17 @@ func (c *AddCommand) Run(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to detect workspace: %w", err)
 	}
 
-	// Create and run the TUI
-	model := add.NewModel(c.fs, ws)
-	p := tea.NewProgram(model)
-
-	finalModel, err := p.Run()
+	flow := add.NewFlow(c.fs, ws)
+	result, err := flow.Run()
 	if err != nil {
 		return fmt.Errorf("failed to run TUI: %w", err)
 	}
 
-	// Check if there was an error during execution
-	if m, ok := finalModel.(add.Model); ok {
-		if m.GetError() != nil {
-			return m.GetError()
-		}
+	if result == nil {
+		return nil
 	}
+
+	_, _ = fmt.Fprintln(cmd.OutOrStdout(), add.RenderSuccess(result))
 
 	return nil
 }
