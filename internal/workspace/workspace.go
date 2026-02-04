@@ -278,6 +278,22 @@ func (w *Workspace) fuzzyLoadNodeProjects() ([]*models.Project, error) {
 		return nil, err
 	}
 
+	rootPackagePath := filepath.Join(w.RootPath, "package.json")
+	var rootPkg *packageJSON
+	skipRootPackage := false
+	if w.fs.Exists(rootPackagePath) {
+		pkg, err := readPackageJSON(w.fs, rootPackagePath)
+		if err != nil {
+			return nil, fmt.Errorf("failed to read root package.json: %w", err)
+		}
+		rootPkg = &pkg
+		if len(extractWorkspaces(pkg)) > 0 {
+			skipRootPackage = true
+		}
+	}
+
+	rootUsed := false
+	otherFound := false
 	ignoredDirs := make(map[string]struct{})
 	var projects []*models.Project
 	if err := w.fs.WalkDir(w.RootPath, func(path string, entry fs.DirEntry, walkErr error) error {
@@ -321,6 +337,10 @@ func (w *Workspace) fuzzyLoadNodeProjects() ([]*models.Project, error) {
 			return nil
 		}
 
+		if skipRootPackage && path == rootPackagePath {
+			return nil
+		}
+
 		pkg, err := readPackageJSON(w.fs, path)
 		if err != nil {
 			return fmt.Errorf("failed to read package.json at %s: %w", path, err)
@@ -332,10 +352,19 @@ func (w *Workspace) fuzzyLoadNodeProjects() ([]*models.Project, error) {
 
 		projectRoot := filepath.Dir(path)
 		projects = append(projects, nodeProjectFromPackageJSON(pkg, projectRoot, path))
+		if path == rootPackagePath {
+			rootUsed = true
+		} else {
+			otherFound = true
+		}
 
 		return nil
 	}); err != nil {
 		return nil, err
+	}
+
+	if rootUsed && !otherFound && rootPkg != nil && !rootPkg.Private {
+		fmt.Println("Using root package.json because no subprojects were found and it is not private.")
 	}
 
 	return projects, nil

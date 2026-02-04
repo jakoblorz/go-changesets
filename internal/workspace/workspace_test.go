@@ -186,7 +186,7 @@ func TestWorkspaceDetect_MixedGoAndNodeWithCollision(t *testing.T) {
 	ws := New(fs)
 	require.NoError(t, ws.Detect())
 
-	require.Len(t, ws.Projects, 3)
+	require.Len(t, ws.Projects, 2)
 
 	projectNames := map[string]models.ProjectType{}
 	for _, p := range ws.Projects {
@@ -195,7 +195,6 @@ func TestWorkspaceDetect_MixedGoAndNodeWithCollision(t *testing.T) {
 
 	require.Equal(t, models.ProjectTypeGo, projectNames["web-go"])
 	require.Equal(t, models.ProjectTypeNode, projectNames["web-node"])
-	require.Equal(t, models.ProjectTypeNode, projectNames["root"])
 }
 
 func TestWorkspaceDetect_WorkspaceNotFound(t *testing.T) {
