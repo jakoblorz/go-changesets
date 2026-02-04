@@ -179,14 +179,14 @@ func TestWorkspaceDetect_MixedGoAndNodeWithCollision(t *testing.T) {
 	fs := filesystem.NewMockFileSystem()
 	fs.AddFile("/workspace/go.work", []byte("go 1.21\nuse ./goapp\n"))
 	fs.AddFile("/workspace/goapp/go.mod", []byte("module github.com/test/web\n\ngo 1.21\n"))
-	fs.AddFile("/workspace/package.json", []byte(`{"name":"root","workspaces":["packages/*"]}`))
+	fs.AddFile("/workspace/package.json", []byte(`{"name":"root","private":true,"workspaces":["packages/*"]}`))
 	fs.AddFile("/workspace/packages/web/package.json", []byte(`{"name":"web","version":"1.0.0"}`))
 	fs.SetCurrentDir("/workspace")
 
 	ws := New(fs)
 	require.NoError(t, ws.Detect())
 
-	require.Len(t, ws.Projects, 3)
+	require.Len(t, ws.Projects, 2)
 
 	projectNames := map[string]models.ProjectType{}
 	for _, p := range ws.Projects {
@@ -195,7 +195,6 @@ func TestWorkspaceDetect_MixedGoAndNodeWithCollision(t *testing.T) {
 
 	require.Equal(t, models.ProjectTypeGo, projectNames["web-go"])
 	require.Equal(t, models.ProjectTypeNode, projectNames["web-node"])
-	require.Equal(t, models.ProjectTypeNode, projectNames["root"])
 }
 
 func TestWorkspaceDetect_WorkspaceNotFound(t *testing.T) {
