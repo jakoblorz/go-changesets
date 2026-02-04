@@ -15,6 +15,8 @@ go install github.com/jakoblorz/go-changesets/cmd/changeset@latest
 - A Go workspace with a `go.work` at the repo root
 - One or more Go modules referenced via `go.work use`
 
+`go-changeset` also supports Node workspace projects via `package.json`, but Go workspaces are the primary workflow.
+
 
 ### Typical workflow
 

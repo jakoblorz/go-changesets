@@ -1,6 +1,7 @@
 package workspace
 
 import (
+	"encoding/json"
 	"fmt"
 	"path/filepath"
 	"strings"
@@ -11,7 +12,7 @@ import (
 	"golang.org/x/mod/modfile"
 )
 
-// Workspace represents a Go workspace containing one or more Go projects.
+// Workspace represents a workspace containing Go and/or Node projects.
 type Workspace struct {
 	fs           filesystem.FileSystem
 	RootPath     string
@@ -29,50 +30,70 @@ func New(fs filesystem.FileSystem) *Workspace {
 
 // Detect finds and loads the workspace from the current directory.
 func (w *Workspace) Detect() error {
-	root, err := w.findWorkspaceRoot()
+	root, hasGoWork, hasPackageJSON, err := w.findWorkspaceRoot()
 	if err != nil {
 		return err
 	}
 
 	w.RootPath = root
-	w.WorkFilePath = filepath.Join(root, "go.work")
+	if hasGoWork {
+		w.WorkFilePath = filepath.Join(root, "go.work")
+	}
 
-	if err := w.loadProjects(); err != nil {
+	if err := w.loadProjects(hasGoWork, hasPackageJSON); err != nil {
 		return fmt.Errorf("failed to load projects: %w", err)
 	}
 
 	return nil
 }
 
-// findWorkspaceRoot walks up the directory tree looking for go.work.
-func (w *Workspace) findWorkspaceRoot() (string, error) {
+// findWorkspaceRoot walks up the directory tree looking for go.work or package.json.
+func (w *Workspace) findWorkspaceRoot() (string, bool, bool, error) {
 	cwd, err := w.fs.Getwd()
 	if err != nil {
-		return "", fmt.Errorf("failed to get working directory: %w", err)
+		return "", false, false, fmt.Errorf("failed to get working directory: %w", err)
 	}
 
 	dir := cwd
 	for {
 		goWorkPath := filepath.Join(dir, "go.work")
-		if w.fs.Exists(goWorkPath) {
-			return dir, nil
+		pkgJSONPath := filepath.Join(dir, "package.json")
+
+		hasGoWork := w.fs.Exists(goWorkPath)
+		hasPackage := w.fs.Exists(pkgJSONPath)
+
+		if hasGoWork || hasPackage {
+			return dir, hasGoWork, hasPackage, nil
 		}
 
 		parent := filepath.Dir(dir)
 		if parent == dir {
-			return "", fmt.Errorf("workspace not found")
+			return "", false, false, fmt.Errorf("workspace not found")
 		}
 		dir = parent
 	}
 }
 
-func (w *Workspace) loadProjects() error {
-	goProjects, err := w.loadGoProjects()
-	if err != nil {
-		return err
+func (w *Workspace) loadProjects(hasGoWork, hasPackageJSON bool) error {
+	var projects []*models.Project
+
+	if hasGoWork {
+		goProjects, err := w.loadGoProjects()
+		if err != nil {
+			return err
+		}
+		projects = append(projects, goProjects...)
 	}
 
-	projects := dedupeProjectNames(goProjects)
+	if hasPackageJSON {
+		nodeProjects, err := w.loadNodeProjects()
+		if err != nil {
+			return err
+		}
+		projects = append(projects, nodeProjects...)
+	}
+
+	projects = dedupeProjectNames(projects)
 	if len(projects) == 0 {
 		return fmt.Errorf("no projects found in workspace")
 	}
@@ -171,6 +192,70 @@ func extractProjectName(modulePath string) string {
 	return modulePath
 }
 
+// loadNodeProjects discovers Node projects via package.json workspaces (or root).
+func (w *Workspace) loadNodeProjects() ([]*models.Project, error) {
+	rootPackagePath := filepath.Join(w.RootPath, "package.json")
+	if !w.fs.Exists(rootPackagePath) {
+		return nil, nil
+	}
+
+	rootPkg, err := readPackageJSON(w.fs, rootPackagePath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read root package.json: %w", err)
+	}
+
+	workspaces := extractWorkspaces(rootPkg)
+
+	if len(workspaces) == 0 {
+		project := nodeProjectFromPackageJSON(rootPkg, w.RootPath, rootPackagePath)
+		return []*models.Project{project}, nil
+	}
+
+	var projects []*models.Project
+	for _, pattern := range workspaces {
+		globPattern := filepath.Join(w.RootPath, pattern)
+		matches, err := w.fs.Glob(globPattern)
+		if err != nil {
+			return nil, fmt.Errorf("failed to glob workspace pattern %s: %w", pattern, err)
+		}
+
+		for _, match := range matches {
+			pkgPath := match
+			info, err := w.fs.Stat(match)
+			if err == nil {
+				if info.IsDir() {
+					pkgPath = filepath.Join(match, "package.json")
+				} else if filepath.Base(match) != "package.json" {
+					continue
+				}
+			}
+
+			if filepath.Base(pkgPath) != "package.json" || !w.fs.Exists(pkgPath) {
+				continue
+			}
+
+			pkg, err := readPackageJSON(w.fs, pkgPath)
+			if err != nil {
+				return nil, fmt.Errorf("failed to read package.json at %s: %w", pkgPath, err)
+			}
+
+			projectRoot := filepath.Dir(pkgPath)
+			projects = append(projects, nodeProjectFromPackageJSON(pkg, projectRoot, pkgPath))
+		}
+	}
+
+	return projects, nil
+}
+
+func nodeProjectFromPackageJSON(pkg packageJSON, rootPath, manifestPath string) *models.Project {
+	name := pkg.Name
+	if strings.TrimSpace(name) == "" {
+		name = filepath.Base(rootPath)
+	}
+
+	return models.NewProject(name, rootPath, "", manifestPath, models.ProjectTypeNode)
+}
+
 func dedupeProjectNames(projects []*models.Project) []*models.Project {
 	counts := make(map[string]int)
 	for _, p := range projects {
@@ -193,4 +278,52 @@ func dedupeProjectNames(projects []*models.Project) []*models.Project {
 	}
 
 	return projects
+}
+
+// packageJSON represents a minimal subset of package.json.
+// Workspaces can be an array or an object with a packages array.
+// See https://docs.npmjs.com/cli/v10/using-npm/workspaces.
+type packageJSON struct {
+	Name       string      `json:"name"`
+	Workspaces interface{} `json:"workspaces"`
+}
+
+func readPackageJSON(fs filesystem.FileSystem, path string) (packageJSON, error) {
+	data, err := fs.ReadFile(path)
+	if err != nil {
+		return packageJSON{}, err
+	}
+
+	var pkg packageJSON
+	if err := json.Unmarshal(data, &pkg); err != nil {
+		return packageJSON{}, err
+	}
+
+	return pkg, nil
+}
+
+func extractWorkspaces(pkg packageJSON) []string {
+	switch v := pkg.Workspaces.(type) {
+	case nil:
+		return nil
+	case []interface{}:
+		return convertWorkspaceArray(v)
+	case map[string]interface{}:
+		if raw, ok := v["packages"]; ok {
+			if arr, ok := raw.([]interface{}); ok {
+				return convertWorkspaceArray(arr)
+			}
+		}
+	}
+	return nil
+}
+
+func convertWorkspaceArray(values []interface{}) []string {
+	var result []string
+	for _, item := range values {
+		if s, ok := item.(string); ok && strings.TrimSpace(s) != "" {
+			result = append(result, s)
+		}
+	}
+	return result
 }

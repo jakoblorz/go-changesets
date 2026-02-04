@@ -69,9 +69,13 @@ func (c *PublishCommand) Run(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to read version: %w", err)
 	}
 
-	fmt.Printf("Version from version.txt: %s\n", fileVersion.String())
+	if resolved.Project.Type == models.ProjectTypeNode {
+		fmt.Printf("Version from package.json: %s\n", fileVersion.String())
+	} else {
+		fmt.Printf("Version from version.txt: %s\n", fileVersion.String())
+	}
 
-	tagVersion, err := getLatestNonRCVersion(c.git, resolved.Name)
+	tagVersion, err := getLatestNonRCVersion(c.git, resolved.Name, resolved.Project.Type)
 	if err != nil {
 		tagVersion = &models.Version{Major: 0, Minor: 0, Patch: 0}
 		fmt.Printf("No existing git tag found (first release)\n")
@@ -86,7 +90,7 @@ func (c *PublishCommand) Run(cmd *cobra.Command, args []string) error {
 
 	fmt.Printf("\n🚀 Publishing new version: %s -> %s\n\n", tagVersion.String(), fileVersion.String())
 
-	tag := fmt.Sprintf("%s@%s", resolved.Name, fileVersion.Tag())
+	tag := tagName(resolved.Name, resolved.Project.Type, fileVersion)
 	fmt.Printf("Creating git tag: %s\n", tag)
 
 	changelogMsg, _ := c.getChangelogForVersion(resolved.Project.RootPath, fileVersion)

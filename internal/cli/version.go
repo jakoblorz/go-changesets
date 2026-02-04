@@ -9,6 +9,7 @@ import (
 	"github.com/jakoblorz/go-changesets/internal/filesystem"
 	"github.com/jakoblorz/go-changesets/internal/git"
 	"github.com/jakoblorz/go-changesets/internal/github"
+	"github.com/jakoblorz/go-changesets/internal/models"
 	"github.com/jakoblorz/go-changesets/internal/versioning"
 	"github.com/spf13/cobra"
 )
@@ -31,7 +32,7 @@ func NewVersionCommand(fs filesystem.FileSystem, gitClient git.GitClient, ghClie
 	cobraCmd := &cobra.Command{
 		Use:   "version",
 		Short: "Version a project based on it's outstanding changesets",
-		Long:  `Applies all changesets for a project, updates version.txt, then edits project's CHANGELOG.md and the CHANGELOG.md in the root of the workspace.`,
+		Long:  `Applies all changesets for a project, updates version.txt or package.json, then edits project's CHANGELOG.md and the CHANGELOG.md in the root of the workspace.`,
 		RunE:  cmd.Run,
 	}
 
@@ -102,7 +103,11 @@ func (c *VersionCommand) Run(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("failed to write version: %w", err)
 	}
 
-	fmt.Printf("✓ Updated %s/version.txt\n", resolved.Project.RootPath)
+	if resolved.Project.Type == models.ProjectTypeNode {
+		fmt.Printf("✓ Updated %s/package.json\n", resolved.Project.RootPath)
+	} else {
+		fmt.Printf("✓ Updated %s/version.txt\n", resolved.Project.RootPath)
+	}
 
 	cl := changelog.NewChangelog(c.fs)
 	entry := &changelog.Entry{
