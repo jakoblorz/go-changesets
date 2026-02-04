@@ -59,7 +59,7 @@ func (c *GHOpenCommand) Run(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("--repo is required")
 	}
 
-	resolved, err := resolveProject(c.fs, projectFlag)
+	resolved, err := resolveProject(c.fs, projectFlag, workspaceOptionsFromCmd(cmd)...)
 	if err != nil {
 		if projectFlag == "" {
 			return fmt.Errorf("--project flag required (or run via 'changeset each'): %w", err)
