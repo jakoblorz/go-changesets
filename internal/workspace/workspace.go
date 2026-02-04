@@ -207,6 +207,9 @@ func (w *Workspace) loadNodeProjects() ([]*models.Project, error) {
 	workspaces := extractWorkspaces(rootPkg)
 
 	if len(workspaces) == 0 {
+		if rootPkg.Private {
+			return nil, nil
+		}
 		project := nodeProjectFromPackageJSON(rootPkg, w.RootPath, rootPackagePath)
 		return []*models.Project{project}, nil
 	}
@@ -237,6 +240,10 @@ func (w *Workspace) loadNodeProjects() ([]*models.Project, error) {
 			pkg, err := readPackageJSON(w.fs, pkgPath)
 			if err != nil {
 				return nil, fmt.Errorf("failed to read package.json at %s: %w", pkgPath, err)
+			}
+
+			if pkg.Private {
+				continue
 			}
 
 			projectRoot := filepath.Dir(pkgPath)
@@ -285,6 +292,7 @@ func dedupeProjectNames(projects []*models.Project) []*models.Project {
 // See https://docs.npmjs.com/cli/v10/using-npm/workspaces.
 type packageJSON struct {
 	Name       string      `json:"name"`
+	Private    bool        `json:"private"`
 	Workspaces interface{} `json:"workspaces"`
 }
 

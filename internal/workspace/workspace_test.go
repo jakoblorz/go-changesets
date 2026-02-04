@@ -97,6 +97,21 @@ func TestWorkspaceDetect_NodeWorkspaces(t *testing.T) {
 	require.Contains(t, names, "web")
 }
 
+func TestWorkspaceDetect_NodeWorkspacesSkipsPrivate(t *testing.T) {
+	fs := filesystem.NewMockFileSystem()
+	fs.AddFile("/workspace/package.json", []byte(`{"name":"root","private":true,"workspaces":["packages/*"]}`))
+	fs.AddFile("/workspace/packages/api/package.json", []byte(`{"name":"api","private":true,"version":"0.1.0"}`))
+	fs.AddFile("/workspace/packages/web/package.json", []byte(`{"name":"web","version":"0.2.0"}`))
+	fs.SetCurrentDir("/workspace")
+
+	ws := New(fs)
+	require.NoError(t, ws.Detect())
+
+	require.Len(t, ws.Projects, 1)
+	require.Equal(t, "web", ws.Projects[0].Name)
+	require.Equal(t, models.ProjectTypeNode, ws.Projects[0].Type)
+}
+
 func TestWorkspaceDetect_MixedGoAndNodeWithCollision(t *testing.T) {
 	fs := filesystem.NewMockFileSystem()
 	fs.AddFile("/workspace/go.work", []byte("go 1.21\nuse ./goapp\n"))
