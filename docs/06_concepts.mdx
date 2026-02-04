@@ -9,10 +9,12 @@ This page describes the key concepts used by `go-changeset` so you can reason ab
 
 ## Workspace detection
 
-`go-changeset` looks for a **workspace root** by walking up from the current working directory:
+`go-changeset` looks for a **workspace root** by walking up from the current working directory and stopping at the first directory that contains a `go.work` or a `package.json`:
 
 - If it finds a `go.work`, it treats the repo as a Go workspace and discovers Go projects from `use` entries.
 - If it finds a `package.json`, it can also discover Node projects via npm/yarn workspaces.
+- If both files exist in the same root, it loads both Go and Node projects.
+- Discovery of projects comes only from `go.work` `use` entries and the `package.json` workspaces list.
 
 ## Projects
 
@@ -58,6 +60,17 @@ To hide a Go project from `go-changeset`, set its `version.txt` to `false`:
 
 ```bash
 echo "false" > path/to/project/version.txt
+```
+
+### Disabling Node projects
+
+To hide a Node project from `go-changeset`, mark it as private in its `package.json`:
+
+```json
+{
+  "name": "internal-tools",
+  "private": true
+}
 ```
 
 ## Git tags
