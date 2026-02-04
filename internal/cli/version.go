@@ -80,7 +80,7 @@ func (c *VersionCommand) Run(cmd *cobra.Command, args []string) error {
 	}
 
 	if owner != "" && repo != "" {
-		if err := enrichChangesetsWithPRInfo(c.git, c.ghClient, projectChangesets, owner, repo); err != nil {
+		if err := enrichChangesetsWithPRInfo(c.git, c.ghClient, projectChangesets, owner, repo, false); err != nil {
 			return err
 		}
 	}

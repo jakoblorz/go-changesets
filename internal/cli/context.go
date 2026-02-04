@@ -410,11 +410,11 @@ type gitOperator struct {
 	ghClient github.GitHubClient
 }
 
-func enrichChangesetsWithPRInfo(git git.GitClient, ghClient github.GitHubClient, changesets []*models.Changeset, owner, repo string) error {
+func enrichChangesetsWithPRInfo(git git.GitClient, ghClient github.GitHubClient, changesets []*models.Changeset, owner, repo string, silent bool) error {
 	return (&gitOperator{
 		git:      git,
 		ghClient: ghClient,
-	}).EnrichChangesetsWithPRInfo(changesets, owner, repo)
+	}).EnrichChangesetsWithPRInfo(changesets, owner, repo, silent)
 }
 
 func getLatestNonRCVersion(git git.GitClient, projectName string, projectType models.ProjectType) (*models.Version, error) {
@@ -423,10 +423,12 @@ func getLatestNonRCVersion(git git.GitClient, projectName string, projectType mo
 	}).GetLatestNonRCVersion(projectName, projectType)
 }
 
-func (c *gitOperator) EnrichChangesetsWithPRInfo(changesets []*models.Changeset, owner, repo string) error {
+func (c *gitOperator) EnrichChangesetsWithPRInfo(changesets []*models.Changeset, owner, repo string, silent bool) error {
 	ghClient := c.ghClient
 	if ghClient == nil {
-		fmt.Printf("⚠️  GitHub client not authenticated; PR enrichment may fail for private/internal repos: %+v\n", github.ErrGitHubTokenNotFound)
+		if !silent {
+			fmt.Printf("⚠️  GitHub client not authenticated; PR enrichment may fail for private/internal repos: %+v\n", github.ErrGitHubTokenNotFound)
+		}
 		ghClient = github.NewClientWithoutAuth()
 	}
 
@@ -436,12 +438,14 @@ func (c *gitOperator) EnrichChangesetsWithPRInfo(changesets []*models.Changeset,
 		return fmt.Errorf("failed to enrich changesets with PR info: %w", err)
 	}
 
-	for _, warn := range res.Warnings {
-		fmt.Printf("⚠️  Warning: %v\n", warn)
-	}
+	if !silent {
+		for _, warn := range res.Warnings {
+			fmt.Printf("⚠️  Warning: %v\n", warn)
+		}
 
-	if res.Enriched > 0 {
-		fmt.Printf("✓ Enriched %d changeset(s) with PR information\n\n", res.Enriched)
+		if res.Enriched > 0 {
+			fmt.Printf("✓ Enriched %d changeset(s) with PR information\n\n", res.Enriched)
+		}
 	}
 
 	return nil
