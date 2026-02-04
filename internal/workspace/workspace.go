@@ -15,6 +15,12 @@ import (
 	"golang.org/x/mod/modfile"
 )
 
+var (
+	rootSkipDirs = map[string]struct{}{
+		".git": {},
+	}
+)
+
 // Workspace represents a workspace containing Go and/or Node projects.
 type Workspace struct {
 	fs                  filesystem.FileSystem
@@ -293,6 +299,15 @@ func (w *Workspace) fuzzyLoadNodeProjects() ([]*models.Project, error) {
 			return relErr
 		}
 		rel = filepath.ToSlash(rel)
+
+		for rootSkipDir := range rootSkipDirs {
+			if rel == rootSkipDir || strings.HasPrefix(rel, rootSkipDir+"/") {
+				if entry.IsDir() {
+					return filepath.SkipDir
+				}
+				return nil
+			}
+		}
 
 		for ignoredDir := range ignoredDirs {
 			if rel == ignoredDir || strings.HasPrefix(rel, ignoredDir+"/") {
