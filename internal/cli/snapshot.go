@@ -87,14 +87,14 @@ func (c *SnapshotCommand) Run(cmd *cobra.Command, args []string) error {
 	highestBump := csManager.GetHighestBump(projectChangesets, resolved.Name)
 	fmt.Printf("Highest bump type: %s\n\n", highestBump)
 
-	nextVersion, err := c.calculateNextVersion(resolved.Name, highestBump)
+	nextVersion, err := c.calculateNextVersion(resolved.Name, resolved.Project.Type, highestBump)
 	if err != nil {
 		return fmt.Errorf("failed to calculate next version: %w", err)
 	}
 
 	fmt.Printf("Next version: %s\n", nextVersion.String())
 
-	rcNumber, err := c.findNextRCNumber(resolved.Name, nextVersion)
+	rcNumber, err := c.findNextRCNumber(resolved.Name, resolved.Project.Type, nextVersion)
 	if err != nil {
 		return fmt.Errorf("failed to find next RC number: %w", err)
 	}
@@ -102,7 +102,7 @@ func (c *SnapshotCommand) Run(cmd *cobra.Command, args []string) error {
 	fmt.Printf("Next RC number: rc%d\n\n", rcNumber)
 
 	rcVersion := nextVersion.WithPrerelease(fmt.Sprintf("rc%d", rcNumber))
-	tag := fmt.Sprintf("%s@%s", resolved.Name, rcVersion.Tag())
+	tag := tagName(resolved.Name, resolved.Project.Type, rcVersion)
 
 	fmt.Printf("Creating snapshot tag: %s\n", tag)
 
@@ -165,12 +165,12 @@ func (c *SnapshotCommand) Run(cmd *cobra.Command, args []string) error {
 	return nil
 }
 
-func (c *SnapshotCommand) calculateNextVersion(projectName string, bump models.BumpType) (*models.Version, error) {
+func (c *SnapshotCommand) calculateNextVersion(projectName string, projectType models.ProjectType, bump models.BumpType) (*models.Version, error) {
 	if c.git == nil {
 		return nil, fmt.Errorf("git client not available")
 	}
 
-	latestVersion, err := getLatestNonRCVersion(c.git, projectName)
+	latestVersion, err := getLatestNonRCVersion(c.git, projectName, projectType)
 	if err != nil {
 		latestVersion = &models.Version{Major: 0, Minor: 0, Patch: 0}
 		fmt.Printf("No existing tags found (first release)\n")
@@ -182,18 +182,18 @@ func (c *SnapshotCommand) calculateNextVersion(projectName string, bump models.B
 	return nextVersion, nil
 }
 
-func (c *SnapshotCommand) findNextRCNumber(projectName string, version *models.Version) (int, error) {
+func (c *SnapshotCommand) findNextRCNumber(projectName string, projectType models.ProjectType, version *models.Version) (int, error) {
 	if c.git == nil {
 		return 0, nil
 	}
 
-	prefix := fmt.Sprintf("%s@v*", projectName)
+	prefix := tagPrefixPattern(projectName, projectType)
 	allTags, err := c.git.GetTagsWithPrefix(prefix)
 	if err != nil {
 		return 0, err
 	}
 
-	versionPrefix := fmt.Sprintf("%s@%s-rc", projectName, version.Tag())
+	versionPrefix := fmt.Sprintf("%s@%s-rc", projectName, tagVersionString(projectType, version))
 	var rcTags []string
 	for _, tag := range allTags {
 		if strings.HasPrefix(tag, versionPrefix) {

@@ -162,7 +162,7 @@ func (b *projectContextBuilder) BuildFromTreeFile(tree TreeOutput) ([]*models.Pr
 				ctx.CurrentVersion = "0.0.0"
 			}
 
-			ctx.LatestTag = latestTagVersion(b.git, project.Name)
+			ctx.LatestTag = latestTagVersion(b.git, project.Name, project.Project.Type)
 
 			currentVer, _ := models.ParseVersion(ctx.CurrentVersion)
 			latestVer, _ := models.ParseVersion(ctx.LatestTag)
@@ -221,7 +221,7 @@ func (b *projectContextBuilder) BuildFromWorkspace(ws *workspace.Workspace) ([]*
 			ctx.CurrentVersion = "0.0.0"
 		}
 
-		ctx.LatestTag = latestTagVersion(b.git, project.Name)
+		ctx.LatestTag = latestTagVersion(b.git, project.Name, project.Type)
 
 		currentVer, _ := models.ParseVersion(ctx.CurrentVersion)
 		latestVer, _ := models.ParseVersion(ctx.LatestTag)
@@ -243,25 +243,35 @@ func (b *projectContextBuilder) BuildFromWorkspace(ws *workspace.Workspace) ([]*
 }
 
 func hasVersionFile(fs filesystem.FileSystem, project *models.Project) bool {
+	if project.Type == models.ProjectTypeNode {
+		return fs.Exists(project.ManifestPath)
+	}
+
 	return fs.Exists(filepath.Join(project.RootPath, "version.txt"))
 }
 
-func latestTagVersion(gitClient git.GitClient, projectName string) string {
+func latestTagVersion(gitClient git.GitClient, projectName string, projectType models.ProjectType) string {
 	if gitClient == nil {
 		return "0.0.0"
 	}
 
-	latestTag, err := gitClient.GetLatestTag(projectName)
-	if err != nil {
+	prefix := tagPrefixPattern(projectName, projectType)
+	tags, err := gitClient.GetTagsWithPrefix(prefix)
+	if err != nil || len(tags) == 0 {
 		return "0.0.0"
 	}
 
-	parts := strings.Split(latestTag, "@")
+	parts := strings.Split(tags[0], "@")
 	if len(parts) != 2 {
 		return "0.0.0"
 	}
 
-	return strings.TrimPrefix(parts[1], "v")
+	version, err := models.ParseVersion(parts[1])
+	if err != nil {
+		return "0.0.0"
+	}
+
+	return version.String()
 }
 
 func parseFilters(filters []string) ([]models.FilterType, error) {
@@ -406,10 +416,10 @@ func enrichChangesetsWithPRInfo(git git.GitClient, ghClient github.GitHubClient,
 	}).EnrichChangesetsWithPRInfo(changesets, owner, repo)
 }
 
-func getLatestNonRCVersion(git git.GitClient, projectName string) (*models.Version, error) {
+func getLatestNonRCVersion(git git.GitClient, projectName string, projectType models.ProjectType) (*models.Version, error) {
 	return (&gitOperator{
 		git: git,
-	}).GetLatestNonRCVersion(projectName)
+	}).GetLatestNonRCVersion(projectName, projectType)
 }
 
 func (c *gitOperator) EnrichChangesetsWithPRInfo(changesets []*models.Changeset, owner, repo string) error {
@@ -436,12 +446,12 @@ func (c *gitOperator) EnrichChangesetsWithPRInfo(changesets []*models.Changeset,
 	return nil
 }
 
-func (c *gitOperator) GetLatestNonRCVersion(projectName string) (*models.Version, error) {
+func (c *gitOperator) GetLatestNonRCVersion(projectName string, projectType models.ProjectType) (*models.Version, error) {
 	if c.git == nil {
 		return nil, fmt.Errorf("git client not available")
 	}
 
-	prefix := fmt.Sprintf("%s@v*", projectName)
+	prefix := tagPrefixPattern(projectName, projectType)
 	tags, err := c.git.GetTagsWithPrefix(prefix)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get tags: %w", err)

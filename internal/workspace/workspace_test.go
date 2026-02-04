@@ -64,6 +64,95 @@ func TestWorkspaceDetect_GoNameCollision(t *testing.T) {
 	require.Truef(t, names["web-go-2"], "expected web-go-2 in %v", names)
 }
 
+func TestWorkspaceDetect_NodeSingleProject(t *testing.T) {
+	fs := filesystem.NewMockFileSystem()
+	fs.AddFile("/workspace/package.json", []byte(`{"name":"root-app","version":"0.1.0"}`))
+	fs.SetCurrentDir("/workspace")
+
+	ws := New(fs)
+	require.NoError(t, ws.Detect())
+
+	require.Len(t, ws.Projects, 1)
+
+	project := ws.Projects[0]
+	require.Equal(t, "root-app", project.Name)
+	require.Equal(t, models.ProjectTypeNode, project.Type)
+	require.Equal(t, "/workspace/package.json", project.ManifestPath)
+}
+
+func TestWorkspaceDetect_NodeWorkspaces(t *testing.T) {
+	fs := filesystem.NewMockFileSystem()
+	fs.AddFile("/workspace/package.json", []byte(`{"name":"root","private":true,"workspaces":["packages/*"]}`))
+	fs.AddFile("/workspace/packages/api/package.json", []byte(`{"name":"api","version":"0.1.0"}`))
+	fs.AddFile("/workspace/packages/web/package.json", []byte(`{"name":"web","version":"0.2.0"}`))
+	fs.SetCurrentDir("/workspace")
+
+	ws := New(fs)
+	require.NoError(t, ws.Detect())
+
+	require.Len(t, ws.Projects, 2)
+
+	names := []string{ws.Projects[0].Name, ws.Projects[1].Name}
+	require.Contains(t, names, "api")
+	require.Contains(t, names, "web")
+}
+
+func TestWorkspaceDetect_NodeWorkspacesSkipsPrivate(t *testing.T) {
+	fs := filesystem.NewMockFileSystem()
+	fs.AddFile("/workspace/package.json", []byte(`{"name":"root","private":true,"workspaces":["packages/*"]}`))
+	fs.AddFile("/workspace/packages/api/package.json", []byte(`{"name":"api","private":true,"version":"0.1.0"}`))
+	fs.AddFile("/workspace/packages/web/package.json", []byte(`{"name":"web","version":"0.2.0"}`))
+	fs.SetCurrentDir("/workspace")
+
+	ws := New(fs)
+	require.NoError(t, ws.Detect())
+
+	require.Len(t, ws.Projects, 1)
+	require.Equal(t, "web", ws.Projects[0].Name)
+	require.Equal(t, models.ProjectTypeNode, ws.Projects[0].Type)
+}
+
+func TestWorkspaceDetect_NodeWorkspacesSkipsUnlistedPackages(t *testing.T) {
+	fs := filesystem.NewMockFileSystem()
+	fs.AddFile("/workspace/package.json", []byte(`{"name":"root","private":true,"workspaces":["packages/*"]}`))
+	fs.AddFile("/workspace/packages/api/package.json", []byte(`{"name":"api","version":"0.1.0"}`))
+	fs.AddFile("/workspace/packages/web/package.json", []byte(`{"name":"web","version":"0.2.0"}`))
+	fs.AddFile("/workspace/tools/cli/package.json", []byte(`{"name":"cli","version":"0.1.0"}`))
+	fs.SetCurrentDir("/workspace")
+
+	ws := New(fs)
+	require.NoError(t, ws.Detect())
+
+	require.Len(t, ws.Projects, 2)
+
+	names := []string{ws.Projects[0].Name, ws.Projects[1].Name}
+	require.Contains(t, names, "api")
+	require.Contains(t, names, "web")
+	require.NotContains(t, names, "cli")
+}
+
+func TestWorkspaceDetect_MixedGoAndNodeWithCollision(t *testing.T) {
+	fs := filesystem.NewMockFileSystem()
+	fs.AddFile("/workspace/go.work", []byte("go 1.21\nuse ./goapp\n"))
+	fs.AddFile("/workspace/goapp/go.mod", []byte("module github.com/test/web\n\ngo 1.21\n"))
+	fs.AddFile("/workspace/package.json", []byte(`{"name":"root","workspaces":["packages/*"]}`))
+	fs.AddFile("/workspace/packages/web/package.json", []byte(`{"name":"web","version":"1.0.0"}`))
+	fs.SetCurrentDir("/workspace")
+
+	ws := New(fs)
+	require.NoError(t, ws.Detect())
+
+	require.Len(t, ws.Projects, 2)
+
+	projectNames := map[string]models.ProjectType{}
+	for _, p := range ws.Projects {
+		projectNames[p.Name] = p.Type
+	}
+
+	require.Equal(t, models.ProjectTypeGo, projectNames["web-go"])
+	require.Equal(t, models.ProjectTypeNode, projectNames["web-node"])
+}
+
 func TestWorkspaceDetect_WorkspaceNotFound(t *testing.T) {
 	fs := NewWorkspaceBuilder(testWorkspaceRoot).FileSystem()
 	ws := New(fs)

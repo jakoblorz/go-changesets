@@ -12,13 +12,13 @@ const (
 	// FilterOpenChangesets selects projects with changesets in .changeset/
 	FilterOpenChangesets FilterType = "open-changesets"
 
-	// FilterOutdatedVersions selects projects where version.txt > latest git tag
+	// FilterOutdatedVersions selects projects where the version source > latest git tag
 	FilterOutdatedVersions FilterType = "outdated-versions"
 
-	// FilterHasVersion selects projects with a version.txt file
+	// FilterHasVersion selects projects with a version source file
 	FilterHasVersion FilterType = "has-version"
 
-	// FilterNoVersion selects projects without a version.txt file
+	// FilterNoVersion selects projects without a version source file
 	FilterNoVersion FilterType = "no-version"
 
 	// FilterUnchanged selects projects with no changesets

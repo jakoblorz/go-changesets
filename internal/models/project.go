@@ -1,12 +1,11 @@
 package models
 
 // ProjectType represents the kind of project.
-//
-// Today go-changeset supports Go workspaces only.
 type ProjectType string
 
 const (
-	ProjectTypeGo ProjectType = "go"
+	ProjectTypeGo   ProjectType = "go"
+	ProjectTypeNode ProjectType = "node"
 )
 
 // Project represents a project/module in the workspace.
@@ -17,13 +16,13 @@ type Project struct {
 	// RootPath is the absolute path to the project root
 	RootPath string
 
-	// ModulePath is the full module path from go.mod (Go projects only)
+	// ModulePath is the full module path from go.mod (Go projects only).
 	ModulePath string
 
-	// ManifestPath is the path to the manifest (go.mod).
+	// ManifestPath is the path to the manifest (go.mod or package.json).
 	ManifestPath string
 
-	// Type indicates the project type.
+	// Type indicates whether this is a Go or Node project.
 	Type ProjectType
 }
 

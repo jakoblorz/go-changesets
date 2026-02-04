@@ -18,7 +18,8 @@ type ProjectContext struct {
 	// CurrentVersion is the parsed project version (defaults to "0.0.0")
 	CurrentVersion string `json:"currentVersion"`
 
-	// HasVersionFile indicates whether `version.txt` exists for this project.
+	// HasVersionFile indicates whether the version source exists for this project.
+	// (version.txt for Go, package.json for Node).
 	HasVersionFile bool `json:"hasVersionFile"`
 
 	// LatestTag is the latest git tag for this project (or "0.0.0" if none)
