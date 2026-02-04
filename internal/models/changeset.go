@@ -40,37 +40,37 @@ func ParseBumpType(s string) (BumpType, error) {
 // PullRequest represents GitHub pull request metadata
 type PullRequest struct {
 	// Number is the PR number (e.g., 123)
-	Number int
+	Number int `json:"number"`
 
 	// Title is the PR title
-	Title string
+	Title string `json:"title"`
 
 	// URL is the full URL to the PR (e.g., https://github.com/owner/repo/pull/123)
-	URL string
+	URL string `json:"url"`
 
 	// Author is the GitHub username of the PR author
-	Author string
+	Author string `json:"author"`
 
 	// Labels are the labels assigned to the PR
-	Labels []string
+	Labels []string `json:"labels,omitempty"`
 }
 
 // Changeset represents a changeset file with its metadata
 type Changeset struct {
 	// ID is the unique identifier for this changeset (filename without extension)
-	ID string
+	ID string `json:"id"`
 
 	// Projects maps project names to their bump types
-	Projects map[string]BumpType
+	Projects map[string]BumpType `json:"projects"`
 
 	// Message is the markdown content describing the change
-	Message string
+	Message string `json:"message"`
 
 	// FilePath is the path to the changeset file
-	FilePath string
+	FilePath string `json:"filePath"`
 
 	// PR contains optional pull request metadata (populated via GitHub API)
-	PR *PullRequest
+	PR *PullRequest `json:"pr,omitempty"`
 }
 
 // NewChangeset creates a new Changeset instance

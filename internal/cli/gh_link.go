@@ -107,21 +107,35 @@ func (c *GHLinkCommand) Run(cmd *cobra.Command, args []string) error {
 		return nil
 	}
 
-	group := tree.GetGroupForProject(ctx.Project)
-	if group == nil {
+	groups := tree.GetGroupsForProject(ctx.Project)
+	if groups == nil {
 		fmt.Printf("⚠️  Failed to get group for project %s, skipping\n", ctx.Project)
 		return nil
 	}
 
 	var relatedPRs []github.RelatedPRInfo
-	for _, proj := range group.Projects {
-		entry, ok := mapping.Projects[proj.Name]
-		if ok && proj.Name != ctx.Project {
-			relatedPRs = append(relatedPRs, github.RelatedPRInfo{
-				Number:  entry.Number,
-				Project: entry.Project,
-				Version: entry.Version,
-			})
+	for _, group := range groups {
+		for _, proj := range group.Projects {
+			entry, ok := mapping.Projects[proj.Name]
+			if ok && proj.Name != ctx.Project {
+				// Check if this PR is already in relatedPRs to avoid duplicates
+				alreadyAdded := false
+				for _, r := range relatedPRs {
+					if r.Number == entry.Number {
+						alreadyAdded = true
+						break
+					}
+				}
+				if alreadyAdded {
+					continue
+				}
+
+				relatedPRs = append(relatedPRs, github.RelatedPRInfo{
+					Number:  entry.Number,
+					Project: entry.Project,
+					Version: entry.Version,
+				})
+			}
 		}
 	}
 	if len(relatedPRs) == 0 {

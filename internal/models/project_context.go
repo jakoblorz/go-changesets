@@ -13,7 +13,7 @@ type ProjectContext struct {
 	ModulePath string `json:"modulePath"`
 
 	// Changesets contains summaries of all changesets affecting this project
-	Changesets []ChangesetSummary `json:"changesets"`
+	Changesets []Changeset `json:"changesets"`
 
 	// CurrentVersion is the parsed project version (defaults to "0.0.0")
 	CurrentVersion string `json:"currentVersion"`
@@ -34,16 +34,4 @@ type ProjectContext struct {
 	// ChangelogPreview contains the markdown that will be added to CHANGELOG.md
 	// Empty string if no changesets
 	ChangelogPreview string `json:"changelogPreview"`
-}
-
-// ChangesetSummary is a simplified changeset representation for context
-type ChangesetSummary struct {
-	// ID is the changeset identifier (filename without extension)
-	ID string `json:"id"`
-
-	// BumpType is the semantic version bump type for this project
-	BumpType BumpType `json:"bumpType"`
-
-	// Message is the changeset description
-	Message string `json:"message"`
 }

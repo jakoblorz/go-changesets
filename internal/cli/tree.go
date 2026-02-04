@@ -42,10 +42,8 @@ type ProjectChangesetsInfo struct {
 
 // ChangesetInfo represents a single changeset's info
 type ChangesetInfo struct {
-	ID      string `json:"id"`
-	File    string `json:"file"`
-	Bump    string `json:"bump"`
-	Message string `json:"message"`
+	*models.Changeset
+	Bump string `json:"bump"`
 }
 
 // TreeOutput represents the complete tree output
@@ -53,17 +51,20 @@ type TreeOutput struct {
 	Groups []ChangesetGroup `json:"groups"`
 }
 
-func (t *TreeOutput) GetGroupForProject(projectName string) *ChangesetGroup {
-	// TODO: can there be multiple groups for same project?
+func (t *TreeOutput) GetGroupsForProject(projectName string) []*ChangesetGroup {
+	groups := []*ChangesetGroup{}
 	for _, group := range t.Groups {
 		for _, project := range group.Projects {
 			if project.Name == projectName {
-				return &group
+				groups = append(groups, &group)
 			}
 		}
 	}
+	if len(groups) == 0 {
+		return nil
+	}
 
-	return nil
+	return groups
 }
 
 // NewTreeCommand creates a new tree command
@@ -423,10 +424,8 @@ func (c *TreeCommand) outputJSON(groups []*ChangesetGroup) error {
 			for _, cs := range changesets {
 				bump, _ := cs.GetBumpForProject(projectName)
 				projectInfo.Changesets = append(projectInfo.Changesets, ChangesetInfo{
-					ID:      cs.ID,
-					File:    cs.FilePath,
-					Bump:    bump.String(),
-					Message: cs.Message,
+					Changeset: cs,
+					Bump:      bump.String(),
 				})
 			}
 
