@@ -1,11 +1,14 @@
 package workspace
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
+	"io/fs"
 	"path/filepath"
 	"strings"
 
+	gitignore "github.com/denormal/go-gitignore"
 	"github.com/jakoblorz/go-changesets/internal/filesystem"
 	"github.com/jakoblorz/go-changesets/internal/models"
 	"github.com/jakoblorz/go-changesets/internal/versioning"
@@ -14,18 +17,35 @@ import (
 
 // Workspace represents a workspace containing Go and/or Node projects.
 type Workspace struct {
-	fs           filesystem.FileSystem
-	RootPath     string
-	WorkFilePath string
-	Projects     []*models.Project
+	fs                  filesystem.FileSystem
+	RootPath            string
+	WorkFilePath        string
+	Projects            []*models.Project
+	nodeStrictWorkspace bool
+}
+
+// Option configures workspace behavior.
+type Option func(*Workspace)
+
+// WithNodeStrictWorkspace limits Node discovery to workspace manifests only.
+func WithNodeStrictWorkspace(enabled bool) Option {
+	return func(w *Workspace) {
+		w.nodeStrictWorkspace = enabled
+	}
 }
 
 // New creates a new Workspace instance.
-func New(fs filesystem.FileSystem) *Workspace {
-	return &Workspace{
+func New(fs filesystem.FileSystem, options ...Option) *Workspace {
+	ws := &Workspace{
 		fs:       fs,
 		Projects: []*models.Project{},
 	}
+
+	for _, option := range options {
+		option(ws)
+	}
+
+	return ws
 }
 
 // Detect finds and loads the workspace from the current directory.
@@ -85,13 +105,11 @@ func (w *Workspace) loadProjects(hasGoWork, hasPackageJSON bool) error {
 		projects = append(projects, goProjects...)
 	}
 
-	if hasPackageJSON {
-		nodeProjects, err := w.loadNodeProjects()
-		if err != nil {
-			return err
-		}
-		projects = append(projects, nodeProjects...)
+	nodeProjects, err := w.loadNodeProjects(hasPackageJSON)
+	if err != nil {
+		return err
 	}
+	projects = append(projects, nodeProjects...)
 
 	projects = dedupeProjectNames(projects)
 	if len(projects) == 0 {
@@ -192,8 +210,8 @@ func extractProjectName(modulePath string) string {
 	return modulePath
 }
 
-// loadNodeProjects discovers Node projects via package.json workspaces (or root).
-func (w *Workspace) loadNodeProjects() ([]*models.Project, error) {
+// loadNodeManifestProjects discovers Node projects via package.json workspaces (or root).
+func (w *Workspace) loadNodeManifestProjects() ([]*models.Project, error) {
 	rootPackagePath := filepath.Join(w.RootPath, "package.json")
 	if !w.fs.Exists(rootPackagePath) {
 		return nil, nil
@@ -252,6 +270,132 @@ func (w *Workspace) loadNodeProjects() ([]*models.Project, error) {
 	}
 
 	return projects, nil
+}
+
+func (w *Workspace) fuzzyLoadNodeProjects() ([]*models.Project, error) {
+	ignore, err := w.loadRootGitIgnore()
+	if err != nil {
+		return nil, err
+	}
+
+	ignoredDirs := make(map[string]struct{})
+	var projects []*models.Project
+	if err := w.fs.WalkDir(w.RootPath, func(path string, entry fs.DirEntry, walkErr error) error {
+		if walkErr != nil {
+			return walkErr
+		}
+		if path == w.RootPath {
+			return nil
+		}
+
+		rel, relErr := filepath.Rel(w.RootPath, path)
+		if relErr != nil {
+			return relErr
+		}
+		rel = filepath.ToSlash(rel)
+
+		for ignoredDir := range ignoredDirs {
+			if rel == ignoredDir || strings.HasPrefix(rel, ignoredDir+"/") {
+				if entry.IsDir() {
+					return filepath.SkipDir
+				}
+				return nil
+			}
+		}
+
+		if ignore != nil {
+			if match := ignore.Relative(rel, entry.IsDir()); match != nil && match.Ignore() {
+				if entry.IsDir() {
+					ignoredDirs[rel] = struct{}{}
+					return filepath.SkipDir
+				}
+				return nil
+			}
+		}
+
+		if entry.IsDir() {
+			return nil
+		}
+
+		if filepath.Base(path) != "package.json" {
+			return nil
+		}
+
+		pkg, err := readPackageJSON(w.fs, path)
+		if err != nil {
+			return fmt.Errorf("failed to read package.json at %s: %w", path, err)
+		}
+
+		if pkg.Private {
+			return nil
+		}
+
+		projectRoot := filepath.Dir(path)
+		projects = append(projects, nodeProjectFromPackageJSON(pkg, projectRoot, path))
+
+		return nil
+	}); err != nil {
+		return nil, err
+	}
+
+	return projects, nil
+}
+
+func (w *Workspace) loadNodeProjects(hasPackageJSON bool) ([]*models.Project, error) {
+	var normal []*models.Project
+	if hasPackageJSON {
+		projects, err := w.loadNodeManifestProjects()
+		if err != nil {
+			return nil, err
+		}
+		normal = projects
+	}
+
+	if w.nodeStrictWorkspace {
+		return normal, nil
+	}
+
+	fuzzyProjects, err := w.fuzzyLoadNodeProjects()
+	if err != nil {
+		return nil, err
+	}
+
+	return mergeProjects(normal, fuzzyProjects), nil
+}
+
+func mergeProjects(normal, additional []*models.Project) []*models.Project {
+	projects := append([]*models.Project{}, normal...)
+	if len(additional) == 0 {
+		return projects
+	}
+
+	byManifest := make(map[string]struct{}, len(normal))
+	for _, project := range normal {
+		byManifest[project.ManifestPath] = struct{}{}
+	}
+
+	for _, project := range additional {
+		if _, exists := byManifest[project.ManifestPath]; exists {
+			continue
+		}
+		projects = append(projects, project)
+	}
+
+	return projects
+}
+
+func (w *Workspace) loadRootGitIgnore() (gitignore.GitIgnore, error) {
+	ignorePath := filepath.Join(w.RootPath, ".gitignore")
+	if !w.fs.Exists(ignorePath) {
+		return nil, nil
+	}
+
+	data, err := w.fs.ReadFile(ignorePath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read .gitignore: %w", err)
+	}
+
+	return gitignore.New(bytes.NewReader(data), w.RootPath, nil), nil
 }
 
 func nodeProjectFromPackageJSON(pkg packageJSON, rootPath, manifestPath string) *models.Project {

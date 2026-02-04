@@ -49,7 +49,7 @@ func (c *VersionCommand) Run(cmd *cobra.Command, args []string) error {
 	owner, _ := cmd.Flags().GetString("owner")
 	repo, _ := cmd.Flags().GetString("repo")
 
-	resolved, err := resolveProject(c.fs, projectFlag)
+	resolved, err := resolveProject(c.fs, projectFlag, workspaceOptionsFromCmd(cmd)...)
 	if err != nil {
 		if projectFlag == "" {
 			return fmt.Errorf("--project flag required (or run via 'changeset each'): %w", err)

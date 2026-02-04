@@ -24,6 +24,8 @@ Changesets help track changes, version projects, and publish releases.`,
 		},
 	}
 
+	rootCmd.PersistentFlags().Bool(nodeStrictWorkspaceFlag, false, "Limit Node discovery to workspace manifests")
+
 	// Add subcommands
 	rootCmd.AddCommand(NewAddCommand(fs))
 	rootCmd.AddCommand(NewVersionCommand(fs, gitClient, ghClient))
