@@ -30,7 +30,7 @@ Changesets help track changes, version projects, and publish releases.`,
 	rootCmd.AddCommand(NewAddCommand(fs))
 	rootCmd.AddCommand(NewVersionCommand(fs, gitClient, ghClient))
 	rootCmd.AddCommand(NewChangelogCommand(fs))
-	rootCmd.AddCommand(NewTreeCommand(fs, gitClient))
+	rootCmd.AddCommand(NewTreeCommand(fs, gitClient, ghClient))
 	rootCmd.AddCommand(NewPublishCommand(fs, gitClient, ghClient))
 	rootCmd.AddCommand(NewSnapshotCommand(fs, gitClient, ghClient))
 	rootCmd.AddCommand(NewEachCommand(fs, gitClient, nil))

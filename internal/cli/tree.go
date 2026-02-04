@@ -10,6 +10,7 @@ import (
 	"github.com/jakoblorz/go-changesets/internal/changeset"
 	"github.com/jakoblorz/go-changesets/internal/filesystem"
 	"github.com/jakoblorz/go-changesets/internal/git"
+	"github.com/jakoblorz/go-changesets/internal/github"
 	"github.com/jakoblorz/go-changesets/internal/models"
 	"github.com/jakoblorz/go-changesets/internal/workspace"
 	"github.com/spf13/cobra"
@@ -20,6 +21,7 @@ type TreeCommand struct {
 	fs            filesystem.FileSystem
 	git           git.GitClient
 	workspaceOpts []workspace.Option
+	ghClient      github.GitHubClient
 }
 
 // ChangesetGroup represents a group of related changesets (from same commit)
@@ -65,10 +67,11 @@ func (t *TreeOutput) GetGroupForProject(projectName string) *ChangesetGroup {
 }
 
 // NewTreeCommand creates a new tree command
-func NewTreeCommand(fs filesystem.FileSystem, gitClient git.GitClient) *cobra.Command {
+func NewTreeCommand(fs filesystem.FileSystem, gitClient git.GitClient, ghClient github.GitHubClient) *cobra.Command {
 	cmd := &TreeCommand{
-		fs:  fs,
-		git: gitClient,
+		fs:       fs,
+		git:      gitClient,
+		ghClient: ghClient,
 	}
 
 	cobraCmd := &cobra.Command{
@@ -95,6 +98,8 @@ coordinate reviews when a single feature affects multiple projects.`,
 
 	cobraCmd.Flags().String("filter", "", "Filter projects (same filters as 'each' command)")
 	cobraCmd.Flags().String("format", "text", "Output format: text or json")
+	cobraCmd.Flags().StringP("owner", "o", "", "GitHub repository owner (optional, enables PR links in changelog preview)")
+	cobraCmd.Flags().StringP("repo", "r", "", "GitHub repository name (optional, enables PR links in changelog preview)")
 
 	return cobraCmd
 }
@@ -103,6 +108,8 @@ coordinate reviews when a single feature affects multiple projects.`,
 func (c *TreeCommand) Run(cmd *cobra.Command, args []string) error {
 	format, _ := cmd.Flags().GetString("format")
 	filter, _ := cmd.Flags().GetString("filter")
+	owner, _ := cmd.Flags().GetString("owner")
+	repo, _ := cmd.Flags().GetString("repo")
 	c.workspaceOpts = workspaceOptionsFromCmd(cmd)
 
 	// Detect workspace
@@ -123,6 +130,12 @@ func (c *TreeCommand) Run(cmd *cobra.Command, args []string) error {
 			fmt.Println(`{"groups":[]}`)
 		}
 		return nil
+	}
+
+	if owner != "" && repo != "" {
+		if err := enrichChangesetsWithPRInfo(c.git, c.ghClient, allChangesets, owner, repo, format == "json"); err != nil {
+			return err
+		}
 	}
 
 	// Group changesets by commit SHA
