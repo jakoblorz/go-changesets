@@ -131,6 +131,46 @@ func TestWorkspaceDetect_NodeWorkspacesSkipsUnlistedPackages(t *testing.T) {
 	require.NotContains(t, names, "cli")
 }
 
+func TestWorkspaceDetect_NodeDirtyModeMergesAndMarksDirtyOnly(t *testing.T) {
+	fs := filesystem.NewMockFileSystem()
+	fs.AddFile("/workspace/package.json", []byte(`{"name":"root","private":true,"workspaces":["packages/*"]}`))
+	fs.AddFile("/workspace/packages/api/package.json", []byte(`{"name":"api","version":"0.1.0"}`))
+	fs.AddFile("/workspace/packages/web/package.json", []byte(`{"name":"web","version":"0.2.0"}`))
+	fs.AddFile("/workspace/tools/cli/package.json", []byte(`{"name":"cli","version":"0.1.0"}`))
+	fs.SetCurrentDir("/workspace")
+
+	ws := New(fs, WithNodeDirtyMode(true))
+	require.NoError(t, ws.Detect())
+
+	require.Len(t, ws.Projects, 3)
+
+	dirtyOnly := map[string]bool{}
+	for _, project := range ws.Projects {
+		dirtyOnly[project.Name] = project.DirtyOnly
+	}
+
+	require.False(t, dirtyOnly["api"])
+	require.False(t, dirtyOnly["web"])
+	require.True(t, dirtyOnly["cli"])
+}
+
+func TestWorkspaceDetect_NodeDirtyModeRespectsGitIgnore(t *testing.T) {
+	fs := filesystem.NewMockFileSystem()
+	fs.AddFile("/workspace/package.json", []byte(`{"name":"root","private":true}`))
+	fs.AddFile("/workspace/.gitignore", []byte("ignored/\npackages/secret/\n"))
+	fs.AddFile("/workspace/ignored/package.json", []byte(`{"name":"ignored","version":"0.1.0"}`))
+	fs.AddFile("/workspace/packages/secret/package.json", []byte(`{"name":"secret","version":"0.1.0"}`))
+	fs.AddFile("/workspace/packages/public/package.json", []byte(`{"name":"public","version":"0.1.0"}`))
+	fs.SetCurrentDir("/workspace")
+
+	ws := New(fs, WithNodeDirtyMode(true))
+	require.NoError(t, ws.Detect())
+
+	require.Len(t, ws.Projects, 1)
+	require.Equal(t, "public", ws.Projects[0].Name)
+	require.True(t, ws.Projects[0].DirtyOnly)
+}
+
 func TestWorkspaceDetect_MixedGoAndNodeWithCollision(t *testing.T) {
 	fs := filesystem.NewMockFileSystem()
 	fs.AddFile("/workspace/go.work", []byte("go 1.21\nuse ./goapp\n"))

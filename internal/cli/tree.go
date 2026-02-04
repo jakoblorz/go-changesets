@@ -17,8 +17,9 @@ import (
 
 // TreeCommand handles the tree command
 type TreeCommand struct {
-	fs  filesystem.FileSystem
-	git git.GitClient
+	fs            filesystem.FileSystem
+	git           git.GitClient
+	workspaceOpts []workspace.Option
 }
 
 // ChangesetGroup represents a group of related changesets (from same commit)
@@ -102,9 +103,10 @@ coordinate reviews when a single feature affects multiple projects.`,
 func (c *TreeCommand) Run(cmd *cobra.Command, args []string) error {
 	format, _ := cmd.Flags().GetString("format")
 	filter, _ := cmd.Flags().GetString("filter")
+	c.workspaceOpts = workspaceOptionsFromCmd(cmd)
 
 	// Detect workspace
-	ws := workspace.New(c.fs)
+	ws := workspace.New(c.fs, c.workspaceOpts...)
 	if err := ws.Detect(); err != nil {
 		return fmt.Errorf("failed to detect workspace: %w", err)
 	}
@@ -226,7 +228,7 @@ func (c *TreeCommand) applyFilter(groups []*ChangesetGroup, ws *workspace.Worksp
 			filteredProjects[project.Name] = true
 		}
 	case "has-version", "no-version", "outdated-versions", "unchanged":
-		builder := newProjectContextBuilder(c.fs, c.git)
+		builder := newProjectContextBuilder(c.fs, c.git, c.workspaceOpts...)
 		contexts, err := builder.BuildFromWorkspace(ws)
 		if err != nil {
 			return nil, err
@@ -389,7 +391,7 @@ func (c *TreeCommand) outputJSON(groups []*ChangesetGroup) error {
 		for _, projectName := range projectNames {
 			changesets := group.projectsMap[projectName]
 
-			project, err := resolveProject(c.fs, projectName)
+			project, err := resolveProject(c.fs, projectName, c.workspaceOpts...)
 			if err != nil {
 				return fmt.Errorf("failed to resolve project %s: %w", projectName, err)
 			}

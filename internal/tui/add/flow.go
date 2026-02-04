@@ -80,12 +80,27 @@ func (f *Flow) Run() (*Result, error) {
 }
 
 func (f *Flow) selectProjects() ([]string, error) {
-	projects := f.workspace.GetProjectNames()
-	selected := make([]string, 0, len(projects))
+	var normalProjects []string
+	var dirtyProjects []string
+	for _, project := range f.workspace.Projects {
+		if project.DirtyOnly {
+			dirtyProjects = append(dirtyProjects, project.Name)
+		} else {
+			normalProjects = append(normalProjects, project.Name)
+		}
+	}
 
-	opts := make([]huh.Option[string], 0, len(projects))
-	for _, p := range projects {
-		opts = append(opts, huh.NewOption(p, p))
+	selected := make([]string, 0, len(normalProjects)+len(dirtyProjects))
+	opts := make([]huh.Option[string], 0, len(normalProjects)+len(dirtyProjects))
+	for i, projectName := range normalProjects {
+		label := projectName
+		if len(dirtyProjects) > 0 && i == len(normalProjects)-1 {
+			label = projectName + "\n"
+		}
+		opts = append(opts, huh.NewOption(label, projectName))
+	}
+	for _, projectName := range dirtyProjects {
+		opts = append(opts, huh.NewOption(projectName, projectName))
 	}
 
 	keyMap := huh.NewDefaultKeyMap()

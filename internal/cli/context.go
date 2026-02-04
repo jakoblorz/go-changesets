@@ -20,8 +20,9 @@ import (
 )
 
 type resolvedProject struct {
-	Name    string
-	ViaEach bool
+	Name      string
+	ViaEach   bool
+	DirtyOnly bool
 
 	Workspace *workspace.Workspace
 	Project   *models.Project
@@ -83,8 +84,8 @@ func resolveProjectName(projectFlag string) (string, bool, error) {
 	return "", false, fmt.Errorf("no project context available (stdin empty and CHANGESET_CONTEXT env var not set, you may need to specific the project)")
 }
 
-func resolveWorkspaceProject(fs filesystem.FileSystem, projectName string) (*workspace.Workspace, *models.Project, error) {
-	ws := workspace.New(fs)
+func resolveWorkspaceProject(fs filesystem.FileSystem, projectName string, workspaceOpts ...workspace.Option) (*workspace.Workspace, *models.Project, error) {
+	ws := workspace.New(fs, workspaceOpts...)
 	if err := ws.Detect(); err != nil {
 		return nil, nil, fmt.Errorf("failed to detect workspace: %w", err)
 	}
@@ -97,13 +98,13 @@ func resolveWorkspaceProject(fs filesystem.FileSystem, projectName string) (*wor
 	return ws, project, nil
 }
 
-func resolveProject(fs filesystem.FileSystem, projectFlag string) (*resolvedProject, error) {
+func resolveProject(fs filesystem.FileSystem, projectFlag string, workspaceOpts ...workspace.Option) (*resolvedProject, error) {
 	projectName, viaEach, err := resolveProjectName(projectFlag)
 	if err != nil {
 		return nil, err
 	}
 
-	ws, project, err := resolveWorkspaceProject(fs, projectName)
+	ws, project, err := resolveWorkspaceProject(fs, projectName, workspaceOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -111,6 +112,7 @@ func resolveProject(fs filesystem.FileSystem, projectFlag string) (*resolvedProj
 	return &resolvedProject{
 		Name:      projectName,
 		ViaEach:   viaEach,
+		DirtyOnly: project.DirtyOnly,
 		Workspace: ws,
 		Project:   project,
 	}, nil
@@ -118,19 +120,20 @@ func resolveProject(fs filesystem.FileSystem, projectFlag string) (*resolvedProj
 
 // projectContextBuilder creates ProjectContext values for workspace projects.
 type projectContextBuilder struct {
-	fs  filesystem.FileSystem
-	git git.GitClient
+	fs            filesystem.FileSystem
+	git           git.GitClient
+	workspaceOpts []workspace.Option
 }
 
-func newProjectContextBuilder(fs filesystem.FileSystem, gitClient git.GitClient) *projectContextBuilder {
-	return &projectContextBuilder{fs: fs, git: gitClient}
+func newProjectContextBuilder(fs filesystem.FileSystem, gitClient git.GitClient, workspaceOpts ...workspace.Option) *projectContextBuilder {
+	return &projectContextBuilder{fs: fs, git: gitClient, workspaceOpts: workspaceOpts}
 }
 
 func (b *projectContextBuilder) BuildFromTreeFile(tree TreeOutput) ([]*models.ProjectContext, error) {
 	var contexts []*models.ProjectContext
 	for _, group := range tree.Groups {
 		for _, proj := range group.Projects {
-			project, err := resolveProject(b.fs, proj.Name)
+			project, err := resolveProject(b.fs, proj.Name, b.workspaceOpts...)
 			if err != nil {
 				return nil, fmt.Errorf("failed to resolve project %s: %w", proj.Name, err)
 			}
@@ -139,6 +142,7 @@ func (b *projectContextBuilder) BuildFromTreeFile(tree TreeOutput) ([]*models.Pr
 				Project:          project.Name,
 				ProjectPath:      project.Project.RootPath,
 				ModulePath:       project.Project.ModulePath,
+				DirtyOnly:        project.Project.DirtyOnly,
 				Changesets:       []models.ChangesetSummary{},
 				HasVersionFile:   hasVersionFile(b.fs, project.Project),
 				ChangelogPreview: proj.ChangelogPreview,
@@ -198,6 +202,7 @@ func (b *projectContextBuilder) BuildFromWorkspace(ws *workspace.Workspace) ([]*
 			Project:        project.Name,
 			ProjectPath:    project.RootPath,
 			ModulePath:     project.ModulePath,
+			DirtyOnly:      project.DirtyOnly,
 			Changesets:     []models.ChangesetSummary{},
 			HasVersionFile: hasVersionFile(b.fs, project),
 		}

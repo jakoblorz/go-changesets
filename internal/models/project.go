@@ -24,6 +24,9 @@ type Project struct {
 
 	// Type indicates whether this is a Go or Node project.
 	Type ProjectType
+
+	// DirtyOnly indicates the project was discovered via dirty mode only.
+	DirtyOnly bool
 }
 
 // NewProject creates a new Project instance
@@ -34,5 +37,6 @@ func NewProject(name, rootPath, modulePath, manifestPath string, projectType Pro
 		ModulePath:   modulePath,
 		ManifestPath: manifestPath,
 		Type:         projectType,
+		DirtyOnly:    false,
 	}
 }

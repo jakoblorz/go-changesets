@@ -12,6 +12,9 @@ type ProjectContext struct {
 	// ModulePath is the full module path from go.mod
 	ModulePath string `json:"modulePath"`
 
+	// DirtyOnly indicates the project was discovered via dirty mode only.
+	DirtyOnly bool `json:"dirtyOnly"`
+
 	// Changesets contains summaries of all changesets affecting this project
 	Changesets []ChangesetSummary `json:"changesets"`
 

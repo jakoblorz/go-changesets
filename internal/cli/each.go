@@ -18,12 +18,13 @@ import (
 
 // EachCommand handles the each command
 type EachCommand struct {
-	fs           filesystem.FileSystem
-	git          git.GitClient
-	filters      []string
-	command      []string
-	fromTreeFile string
-	projects     string
+	fs            filesystem.FileSystem
+	git           git.GitClient
+	filters       []string
+	command       []string
+	fromTreeFile  string
+	projects      string
+	workspaceOpts []workspace.Option
 
 	stdoutWriter io.Writer
 }
@@ -49,7 +50,7 @@ Filters:
   no-version        - Projects without a version source file
 
 The command receives a JSON object via STDIN with project context.
-Environment variables are also set: PROJECT, PROJECT_PATH, CURRENT_VERSION, LATEST_TAG`,
+Environment variables are also set: PROJECT, PROJECT_PATH, CURRENT_VERSION, LATEST_TAG, PROJECT_DIRTY_ONLY`,
 		Example: `  # Version all projects with changesets
   changeset each --filter=open-changesets -- changeset version
 
@@ -90,6 +91,7 @@ func (c *EachCommand) Run(cmd *cobra.Command, args []string) error {
 		return fmt.Errorf("no command specified (use -- before command)")
 	}
 	c.command = args
+	c.workspaceOpts = workspaceOptionsFromCmd(cmd)
 
 	if c.fromTreeFile != "" {
 		return c.runFromTreeFile()
@@ -99,12 +101,12 @@ func (c *EachCommand) Run(cmd *cobra.Command, args []string) error {
 }
 
 func (c *EachCommand) runFromWorkspace() error {
-	ws := workspace.New(c.fs)
+	ws := workspace.New(c.fs, c.workspaceOpts...)
 	if err := ws.Detect(); err != nil {
 		return fmt.Errorf("failed to detect workspace: %w", err)
 	}
 
-	builder := newProjectContextBuilder(c.fs, c.git)
+	builder := newProjectContextBuilder(c.fs, c.git, c.workspaceOpts...)
 	contexts, err := builder.BuildFromWorkspace(ws)
 	if err != nil {
 		return fmt.Errorf("failed to build project contexts: %w", err)
@@ -153,7 +155,7 @@ func (c *EachCommand) runFromTreeFile() error {
 		return fmt.Errorf("failed to parse tree JSON: %w", err)
 	}
 
-	contexts, err := newProjectContextBuilder(c.fs, c.git).BuildFromTreeFile(tree)
+	contexts, err := newProjectContextBuilder(c.fs, c.git, c.workspaceOpts...).BuildFromTreeFile(tree)
 	if err != nil {
 		return fmt.Errorf("failed to build project contexts from tree file: %w", err)
 	}
@@ -238,6 +240,7 @@ func (c *EachCommand) executeForProject(ctx *models.ProjectContext) error {
 		fmt.Sprintf("PROJECT_PATH=%s", ctx.ProjectPath),
 		fmt.Sprintf("CURRENT_VERSION=%s", ctx.CurrentVersion),
 		fmt.Sprintf("LATEST_TAG=%s", ctx.LatestTag),
+		fmt.Sprintf("PROJECT_DIRTY_ONLY=%t", ctx.DirtyOnly),
 		fmt.Sprintf("CHANGELOG_PREVIEW=%s", ctx.ChangelogPreview),
 		fmt.Sprintf("CHANGESET_CONTEXT=%s", string(jsonData)),
 		// make sure to update the each_test.go env cases if you add more variables

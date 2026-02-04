@@ -24,6 +24,8 @@ Changesets help track changes, version projects, and publish releases.`,
 		},
 	}
 
+	rootCmd.PersistentFlags().Bool(nodeDirtyFlag, false, "Scan the entire repo for package.json files (respects root .gitignore)")
+
 	// Add subcommands
 	rootCmd.AddCommand(NewAddCommand(fs))
 	rootCmd.AddCommand(NewVersionCommand(fs, gitClient, ghClient))
