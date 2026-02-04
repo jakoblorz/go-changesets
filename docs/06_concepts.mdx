@@ -14,7 +14,7 @@ This page describes the key concepts used by `go-changeset` so you can reason ab
 - If it finds a `go.work`, it treats the repo as a Go workspace and discovers Go projects from `use` entries.
 - If it finds a `package.json`, it can also discover Node projects via npm/yarn workspaces.
 - If both files exist in the same root, it loads both Go and Node projects.
-- It does not crawl the full tree or consult `.gitignore`; discovery comes only from `go.work` `use` entries and the `package.json` workspaces list.
+- Discovery of projects comes only from `go.work` `use` entries and the `package.json` workspaces list.
 
 ## Projects
 
