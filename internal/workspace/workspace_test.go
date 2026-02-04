@@ -92,7 +92,10 @@ func TestWorkspaceDetect_NodeWorkspaces(t *testing.T) {
 
 	require.Len(t, ws.Projects, 2)
 
-	names := []string{ws.Projects[0].Name, ws.Projects[1].Name}
+	var names []string
+	for _, project := range ws.Projects {
+		names = append(names, project.Name)
+	}
 	require.Contains(t, names, "api")
 	require.Contains(t, names, "web")
 }
@@ -112,7 +115,7 @@ func TestWorkspaceDetect_NodeWorkspacesSkipsPrivate(t *testing.T) {
 	require.Equal(t, models.ProjectTypeNode, ws.Projects[0].Type)
 }
 
-func TestWorkspaceDetect_NodeWorkspacesSkipsUnlistedPackages(t *testing.T) {
+func TestWorkspaceDetect_NodeWorkspacesIncludesUnlistedPackagesByDefault(t *testing.T) {
 	fs := filesystem.NewMockFileSystem()
 	fs.AddFile("/workspace/package.json", []byte(`{"name":"root","private":true,"workspaces":["packages/*"]}`))
 	fs.AddFile("/workspace/packages/api/package.json", []byte(`{"name":"api","version":"0.1.0"}`))
@@ -123,19 +126,60 @@ func TestWorkspaceDetect_NodeWorkspacesSkipsUnlistedPackages(t *testing.T) {
 	ws := New(fs)
 	require.NoError(t, ws.Detect())
 
+	require.Len(t, ws.Projects, 3)
+
+	var names []string
+	for _, project := range ws.Projects {
+		names = append(names, project.Name)
+	}
+	require.Contains(t, names, "api")
+	require.Contains(t, names, "web")
+	require.Contains(t, names, "cli")
+}
+
+func TestWorkspaceDetect_NodeStrictWorkspaceSkipsUnlistedPackages(t *testing.T) {
+	fs := filesystem.NewMockFileSystem()
+	fs.AddFile("/workspace/package.json", []byte(`{"name":"root","private":true,"workspaces":["packages/*"]}`))
+	fs.AddFile("/workspace/packages/api/package.json", []byte(`{"name":"api","version":"0.1.0"}`))
+	fs.AddFile("/workspace/packages/web/package.json", []byte(`{"name":"web","version":"0.2.0"}`))
+	fs.AddFile("/workspace/tools/cli/package.json", []byte(`{"name":"cli","version":"0.1.0"}`))
+	fs.SetCurrentDir("/workspace")
+
+	ws := New(fs, WithNodeStrictWorkspace(true))
+	require.NoError(t, ws.Detect())
+
 	require.Len(t, ws.Projects, 2)
 
-	names := []string{ws.Projects[0].Name, ws.Projects[1].Name}
+	var names []string
+	for _, project := range ws.Projects {
+		names = append(names, project.Name)
+	}
 	require.Contains(t, names, "api")
 	require.Contains(t, names, "web")
 	require.NotContains(t, names, "cli")
+}
+
+func TestWorkspaceDetect_NodeFuzzyRespectsGitIgnore(t *testing.T) {
+	fs := filesystem.NewMockFileSystem()
+	fs.AddFile("/workspace/package.json", []byte(`{"name":"root","private":true}`))
+	fs.AddFile("/workspace/.gitignore", []byte("ignored/\npackages/secret/\n"))
+	fs.AddFile("/workspace/ignored/package.json", []byte(`{"name":"ignored","version":"0.1.0"}`))
+	fs.AddFile("/workspace/packages/secret/package.json", []byte(`{"name":"secret","version":"0.1.0"}`))
+	fs.AddFile("/workspace/packages/public/package.json", []byte(`{"name":"public","version":"0.1.0"}`))
+	fs.SetCurrentDir("/workspace")
+
+	ws := New(fs)
+	require.NoError(t, ws.Detect())
+
+	require.Len(t, ws.Projects, 1)
+	require.Equal(t, "public", ws.Projects[0].Name)
 }
 
 func TestWorkspaceDetect_MixedGoAndNodeWithCollision(t *testing.T) {
 	fs := filesystem.NewMockFileSystem()
 	fs.AddFile("/workspace/go.work", []byte("go 1.21\nuse ./goapp\n"))
 	fs.AddFile("/workspace/goapp/go.mod", []byte("module github.com/test/web\n\ngo 1.21\n"))
-	fs.AddFile("/workspace/package.json", []byte(`{"name":"root","workspaces":["packages/*"]}`))
+	fs.AddFile("/workspace/package.json", []byte(`{"name":"root","private":true,"workspaces":["packages/*"]}`))
 	fs.AddFile("/workspace/packages/web/package.json", []byte(`{"name":"web","version":"1.0.0"}`))
 	fs.SetCurrentDir("/workspace")
 

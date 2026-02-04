@@ -47,7 +47,7 @@ The output can be captured in scripts or CI workflows for use in PR descriptions
 func (c *ChangelogCommand) Run(cmd *cobra.Command, args []string) error {
 	projectFlag, _ := cmd.Flags().GetString("project")
 
-	resolved, err := resolveProject(c.fs, projectFlag)
+	resolved, err := resolveProject(c.fs, projectFlag, workspaceOptionsFromCmd(cmd)...)
 	if err != nil {
 		if projectFlag == "" {
 			return fmt.Errorf("--project flag required (or run via 'changeset each'): %w", err)

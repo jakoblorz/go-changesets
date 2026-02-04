@@ -31,7 +31,7 @@ func NewAddCommand(fs filesystem.FileSystem) *cobra.Command {
 // Run executes the add command
 func (c *AddCommand) Run(cmd *cobra.Command, args []string) error {
 	// Detect workspace
-	ws := workspace.New(c.fs)
+	ws := workspace.New(c.fs, workspaceOptionsFromCmd(cmd)...)
 	if err := ws.Detect(); err != nil {
 		return fmt.Errorf("failed to detect workspace: %w", err)
 	}
