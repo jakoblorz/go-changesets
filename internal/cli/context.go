@@ -134,14 +134,13 @@ func (b *projectContextBuilder) BuildFromTreeFile(tree TreeOutput) ([]*models.Pr
 
 	for _, group := range tree.Groups {
 		for _, proj := range group.Projects {
-			ctx, exists := projects[proj.Name]
-			if !exists {
+			if _, exists := projects[proj.Name]; !exists {
 				project, err := resolveProject(b.fs, proj.Name, b.workspaceOpts...)
 				if err != nil {
 					return nil, fmt.Errorf("failed to resolve project %s: %w", proj.Name, err)
 				}
 
-				ctx = &models.ProjectContext{
+				ctx := &models.ProjectContext{
 					Project:        project.Name,
 					ProjectPath:    project.Project.RootPath,
 					ModulePath:     project.Project.ModulePath,
