@@ -7,6 +7,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 
 	"github.com/jakoblorz/go-changesets/internal/changelog"
@@ -128,49 +129,111 @@ func newProjectContextBuilder(fs filesystem.FileSystem, gitClient git.GitClient,
 }
 
 func (b *projectContextBuilder) BuildFromTreeFile(tree TreeOutput) ([]*models.ProjectContext, error) {
-	var contexts []*models.ProjectContext
+	projects := make(map[string]*models.ProjectContext)
+	changesetsByProject := make(map[string]map[string]*models.Changeset)
+
 	for _, group := range tree.Groups {
 		for _, proj := range group.Projects {
-			project, err := resolveProject(b.fs, proj.Name, b.workspaceOpts...)
-			if err != nil {
-				return nil, fmt.Errorf("failed to resolve project %s: %w", proj.Name, err)
+			ctx, exists := projects[proj.Name]
+			if !exists {
+				project, err := resolveProject(b.fs, proj.Name, b.workspaceOpts...)
+				if err != nil {
+					return nil, fmt.Errorf("failed to resolve project %s: %w", proj.Name, err)
+				}
+
+				ctx = &models.ProjectContext{
+					Project:        project.Name,
+					ProjectPath:    project.Project.RootPath,
+					ModulePath:     project.Project.ModulePath,
+					Changesets:     []models.ChangesetSummary{},
+					HasVersionFile: hasVersionFile(b.fs, project.Project),
+				}
+
+				versionStore := versioning.NewVersionStore(b.fs, project.Project.Type)
+				if currentVer, err := versionStore.Read(project.Project.RootPath); err == nil {
+					ctx.CurrentVersion = currentVer.String()
+				} else {
+					ctx.CurrentVersion = "0.0.0"
+				}
+
+				ctx.LatestTag = latestTagVersion(b.git, project.Name, project.Project.Type)
+
+				currentVer, _ := models.ParseVersion(ctx.CurrentVersion)
+				latestVer, _ := models.ParseVersion(ctx.LatestTag)
+				ctx.IsOutdated = currentVer.Compare(latestVer) > 0
+
+				projects[proj.Name] = ctx
+				changesetsByProject[proj.Name] = make(map[string]*models.Changeset)
 			}
 
-			ctx := &models.ProjectContext{
-				Project:          project.Name,
-				ProjectPath:      project.Project.RootPath,
-				ModulePath:       project.Project.ModulePath,
-				Changesets:       []models.ChangesetSummary{},
-				HasVersionFile:   hasVersionFile(b.fs, project.Project),
-				ChangelogPreview: proj.ChangelogPreview,
+			for _, cs := range proj.Changesets {
+				projectChangesets := changesetsByProject[proj.Name]
+				aggregated, ok := projectChangesets[cs.ID]
+				if !ok {
+					aggregated = &models.Changeset{
+						ID:       cs.ID,
+						FilePath: cs.File,
+						Projects: map[string]models.BumpType{},
+						Message:  cs.Message,
+					}
+					projectChangesets[cs.ID] = aggregated
+				}
+
+				aggregated.Projects[proj.Name] = models.BumpType(cs.Bump)
+				if cs.PR != nil {
+					aggregated.PR = &models.PullRequest{
+						Number: cs.PR.Number,
+						Title:  cs.PR.Title,
+						URL:    cs.PR.URL,
+						Author: cs.PR.Author,
+						Labels: cs.PR.Labels,
+					}
+				}
 			}
-
-			projectChangesets := proj.Changesets
-			ctx.HasChangesets = len(projectChangesets) > 0
-
-			for _, cs := range projectChangesets {
-				ctx.Changesets = append(ctx.Changesets, models.ChangesetSummary{
-					ID:       cs.ID,
-					BumpType: models.BumpType(cs.Bump),
-					Message:  cs.Message,
-				})
-			}
-
-			versionStore := versioning.NewVersionStore(b.fs, project.Project.Type)
-			if currentVer, err := versionStore.Read(project.Project.RootPath); err == nil {
-				ctx.CurrentVersion = currentVer.String()
-			} else {
-				ctx.CurrentVersion = "0.0.0"
-			}
-
-			ctx.LatestTag = latestTagVersion(b.git, project.Name, project.Project.Type)
-
-			currentVer, _ := models.ParseVersion(ctx.CurrentVersion)
-			latestVer, _ := models.ParseVersion(ctx.LatestTag)
-			ctx.IsOutdated = currentVer.Compare(latestVer) > 0
-
-			contexts = append(contexts, ctx)
 		}
+	}
+
+	projectNames := make([]string, 0, len(projects))
+	for projectName := range projects {
+		projectNames = append(projectNames, projectName)
+	}
+	sort.Strings(projectNames)
+
+	contexts := make([]*models.ProjectContext, 0, len(projectNames))
+	changelog := changelog.NewChangelog(b.fs)
+
+	for _, projectName := range projectNames {
+		ctx := projects[projectName]
+		projectChangesetsMap := changesetsByProject[projectName]
+
+		changesets := make([]*models.Changeset, 0, len(projectChangesetsMap))
+		for _, cs := range projectChangesetsMap {
+			changesets = append(changesets, cs)
+		}
+		sort.Slice(changesets, func(i, j int) bool {
+			return changesets[i].ID < changesets[j].ID
+		})
+
+		ctx.HasChangesets = len(changesets) > 0
+
+		for _, cs := range changesets {
+			bump, _ := cs.GetBumpForProject(projectName)
+			ctx.Changesets = append(ctx.Changesets, models.ChangesetSummary{
+				ID:       cs.ID,
+				BumpType: bump,
+				Message:  cs.Message,
+			})
+		}
+
+		if len(changesets) > 0 {
+			preview, err := changelog.FormatEntry(changesets, projectName, ctx.ProjectPath)
+			if err != nil {
+				return nil, fmt.Errorf("failed to format changelog preview for %s: %w", projectName, err)
+			}
+			ctx.ChangelogPreview = preview
+		}
+
+		contexts = append(contexts, ctx)
 	}
 
 	return contexts, nil
