@@ -10,16 +10,16 @@
 [TestEach_FromTreeFile - 1]
 Running command for 2 project(s)...
 
-📦 [1/2] auth
-auth:/test-workspace/auth
-### Patch Changes - Improving the performance of the authentication module.
+📦 [1/2] api
+api:/test-workspace/api
+### Patch Changes - Restructuring API endpoints for better clarity.
 ✓ Success
 
 ------------------------------------------------------------
 
-📦 [2/2] api
-api:/test-workspace/api
-### Patch Changes - Restructuring API endpoints for better clarity.
+📦 [2/2] auth
+auth:/test-workspace/auth
+### Minor Changes - Added multi-factor authentication support. ([#122](https://github.com/example/repo/pull/122) by @bob) ### Patch Changes - Improving the performance of the authentication module. ([#120](https://github.com/example/repo/pull/120) by @alice)
 ✓ Success
 
 ---

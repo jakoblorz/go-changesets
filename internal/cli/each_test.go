@@ -84,19 +84,25 @@ func TestEach_FromTreeFile(t *testing.T) {
 				"commit": "abc123def456",
 				"projects": [
 					{
-				    	"name": "auth",
+			    		"name": "auth",
 						"changesets": [
 							{
 								"id": "willing_bobcat_xFt2dlSu",
 								"file": "%s/.changeset/willing_bobcat_xFt2dlSu.md",
 								"bump": "patch",
-								"message": "Improving the performance of the authentication module."
+								"message": "Improving the performance of the authentication module.",
+								"pr": {
+									"number": 120,
+									"title": "Improve auth performance",
+									"url": "https://github.com/example/repo/pull/120",
+									"author": "alice"
+								}
 							}
 						],
-						"changelogPreview": "### Patch Changes\n\n- Improving the performance of the authentication module.\n\n"
+						"changelogPreview": "### Patch Changes\n\n- Improving the performance of the authentication module. ([#120](https://github.com/example/repo/pull/120) by @alice)\n\n"
 					},
 					{
-				    	"name": "api",
+			    		"name": "api",
 						"changesets": [
 							{
 								"id": "willing_elephant_xFt2dlSu",
@@ -108,9 +114,32 @@ func TestEach_FromTreeFile(t *testing.T) {
 						"changelogPreview": "### Patch Changes\n\n- Restructuring API endpoints for better clarity.\n\n"
 					}
 				]
+			},
+			{
+				"commit": "def456ghi789",
+				"projects": [
+					{
+			    		"name": "auth",
+						"changesets": [
+							{
+								"id": "helpful_otter_1AbCdE",
+								"file": "%s/.changeset/helpful_otter_1AbCdE.md",
+								"bump": "minor",
+								"message": "Added multi-factor authentication support.",
+								"pr": {
+									"number": 122,
+									"title": "Add MFA",
+									"url": "https://github.com/example/repo/pull/122",
+									"author": "bob"
+								}
+							}
+						],
+						"changelogPreview": "### Minor Changes\n\n- Added multi-factor authentication support. ([#122](https://github.com/example/repo/pull/122) by @bob)\n\n"
+					}
+				]
 			}
 		]
-	}`, ws.RootPath, ws.RootPath)))
+	}`, ws.RootPath, ws.RootPath, ws.RootPath)))
 
 	var buf bytes.Buffer
 	cmd := &EachCommand{
