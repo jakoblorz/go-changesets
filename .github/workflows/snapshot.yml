@@ -68,7 +68,7 @@ jobs:
           go-version-file: ${{ inputs.go_version_file }}
 
       - name: Create snapshot
-        uses: ./.github/actions/changeset-snapshot
+        uses: jakoblorz/go-changesets/.github/actions/changeset-snapshot@8ad4ec3a59f4f3de5ba75b8bb2b30f116e3be7df
         with:
           changeset_ref: ${{ inputs.changeset_ref }}
           snapshot_branch: ${{ inputs.snapshot_branch }}
