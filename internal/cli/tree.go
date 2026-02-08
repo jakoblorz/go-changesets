@@ -42,10 +42,20 @@ type ProjectChangesetsInfo struct {
 
 // ChangesetInfo represents a single changeset's info
 type ChangesetInfo struct {
-	ID      string `json:"id"`
-	File    string `json:"file"`
-	Bump    string `json:"bump"`
-	Message string `json:"message"`
+	ID      string           `json:"id"`
+	File    string           `json:"file"`
+	Bump    string           `json:"bump"`
+	Message string           `json:"message"`
+	PR      *PullRequestInfo `json:"pr,omitempty"`
+}
+
+// PullRequestInfo represents serialized PR metadata for a changeset.
+type PullRequestInfo struct {
+	Number int      `json:"number"`
+	Title  string   `json:"title"`
+	URL    string   `json:"url"`
+	Author string   `json:"author"`
+	Labels []string `json:"labels,omitempty"`
 }
 
 // TreeOutput represents the complete tree output
@@ -54,16 +64,54 @@ type TreeOutput struct {
 }
 
 func (t *TreeOutput) GetGroupForProject(projectName string) *ChangesetGroup {
-	// TODO: can there be multiple groups for same project?
+	relatedProjects := make(map[string]ProjectChangesetsInfo)
+	found := false
+
 	for _, group := range t.Groups {
+		containsProject := false
 		for _, project := range group.Projects {
 			if project.Name == projectName {
-				return &group
+				containsProject = true
+				found = true
+				break
 			}
+		}
+
+		if !containsProject {
+			continue
+		}
+
+		for _, project := range group.Projects {
+			existing, ok := relatedProjects[project.Name]
+			if !ok {
+				relatedProjects[project.Name] = project
+				continue
+			}
+
+			existing.Changesets = append(existing.Changesets, project.Changesets...)
+			if existing.ChangelogPreview == "" {
+				existing.ChangelogPreview = project.ChangelogPreview
+			}
+			relatedProjects[project.Name] = existing
 		}
 	}
 
-	return nil
+	if !found {
+		return nil
+	}
+
+	projectNames := make([]string, 0, len(relatedProjects))
+	for name := range relatedProjects {
+		projectNames = append(projectNames, name)
+	}
+	sort.Strings(projectNames)
+
+	projects := make([]ProjectChangesetsInfo, 0, len(projectNames))
+	for _, name := range projectNames {
+		projects = append(projects, relatedProjects[name])
+	}
+
+	return &ChangesetGroup{Projects: projects}
 }
 
 // NewTreeCommand creates a new tree command
@@ -422,12 +470,24 @@ func (c *TreeCommand) outputJSON(groups []*ChangesetGroup) error {
 
 			for _, cs := range changesets {
 				bump, _ := cs.GetBumpForProject(projectName)
-				projectInfo.Changesets = append(projectInfo.Changesets, ChangesetInfo{
+				csInfo := ChangesetInfo{
 					ID:      cs.ID,
 					File:    cs.FilePath,
 					Bump:    bump.String(),
 					Message: cs.Message,
-				})
+				}
+
+				if cs.PR != nil {
+					csInfo.PR = &PullRequestInfo{
+						Number: cs.PR.Number,
+						Title:  cs.PR.Title,
+						URL:    cs.PR.URL,
+						Author: cs.PR.Author,
+						Labels: cs.PR.Labels,
+					}
+				}
+
+				projectInfo.Changesets = append(projectInfo.Changesets, csInfo)
 			}
 
 			outGroup.Projects = append(outGroup.Projects, projectInfo)
