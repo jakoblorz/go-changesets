@@ -81,3 +81,28 @@ These actions accept `changeset_ref`, `node_strict_workspace`, and the token inp
 
 - `kitchensink/.github/workflows/changeset.yml`
 - `kitchensink/.github/workflows/snapshot.yml`
+
+## Minimal workflow outline
+
+Use `changeset each` to fan out per project (or run `changeset version` with `--project` flag to version this specific project).
+
+```bash
+# Create version updates (per project)
+changeset each --filter open-changesets -- changeset version
+
+# Publish when version file > latest tag
+export GITHUB_TOKEN=...
+changeset each --filter outdated-versions -- \
+  changeset publish --owner org --repo repo
+```
+
+## Optional helpers
+
+- `changeset tree` groups changesets by commit to coordinate multi-project releases.
+- `changeset gh pr open/link/close` can create and update release PRs.
+
+## Tokens
+
+- `GITHUB_TOKEN` is required for `publish` and `snapshot` when creating GitHub releases.
+- `GITHUB_TOKEN` is required for `changeset gh pr` commands.
+
