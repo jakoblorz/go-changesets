@@ -1,0 +1,127 @@
+name: "changeset-snapshot"
+description: "Create release candidate snapshots using go-changeset"
+inputs:
+  changeset_ref:
+    description: "go-changeset version to install (defaults to action/workflow ref or latest)"
+    required: false
+  snapshot_branch:
+    description: "Branch to create snapshot from"
+    default: "canary"
+    required: false
+  snapshot_project:
+    description: "Project name (leave empty for all projects with changesets)"
+    required: false
+  owner:
+    description: "GitHub repository owner override"
+    required: false
+  repo:
+    description: "GitHub repository name override"
+    required: false
+  node_strict_workspace:
+    description: "Limit Node discovery to workspace manifests"
+    default: "false"
+    required: false
+  snapshot_token:
+    description: "Token for snapshot operations (defaults to existing GH_TOKEN/GITHUB_TOKEN)"
+    required: false
+  skip_install:
+    description: "Skip installing go-changeset if already available"
+    default: "false"
+    required: false
+runs:
+  using: "composite"
+  steps:
+    - name: Configure token
+      shell: bash
+      run: |
+        if [ -n "${{ inputs.snapshot_token }}" ]; then
+          echo "GH_TOKEN=${{ inputs.snapshot_token }}" >> "$GITHUB_ENV"
+          echo "GITHUB_TOKEN=${{ inputs.snapshot_token }}" >> "$GITHUB_ENV"
+        fi
+
+    - name: Install go-changeset
+      if: ${{ inputs.skip_install != 'true' }}
+      shell: bash
+      run: |
+        ref="${{ inputs.changeset_ref }}"
+        if [ -z "$ref" ] && [ -n "${GITHUB_ACTION_REF:-}" ]; then
+          ref="$GITHUB_ACTION_REF"
+        fi
+        if [ -z "$ref" ] && [ -n "${GITHUB_WORKFLOW_REF:-}" ]; then
+          ref="${GITHUB_WORKFLOW_REF##*@}"
+        fi
+        if [ -n "$ref" ]; then
+          ref="${ref#refs/heads/}"
+          ref="${ref#refs/tags/}"
+        fi
+        if [ -z "$ref" ]; then
+          ref="latest"
+        fi
+        echo "Installing go-changeset@$ref"
+        go install "github.com/jakoblorz/go-changesets/cmd/changeset@${ref}"
+
+    - name: Prepare variables
+      shell: bash
+      run: |
+        owner="${{ inputs.owner }}"
+        repo="${{ inputs.repo }}"
+        if [ -z "$owner" ] || [ -z "$repo" ]; then
+          if [ -n "${GITHUB_REPOSITORY:-}" ]; then
+            owner="${owner:-${GITHUB_REPOSITORY%%/*}}"
+            repo="${repo:-${GITHUB_REPOSITORY#*/}}"
+          fi
+        fi
+
+        if [ -z "$owner" ] || [ -z "$repo" ]; then
+          echo "owner/repo could not be determined. Set inputs.owner and inputs.repo." >&2
+          exit 1
+        fi
+
+        echo "CHANGESET_OWNER=$owner" >> "$GITHUB_ENV"
+        echo "CHANGESET_REPO=$repo" >> "$GITHUB_ENV"
+        echo "CHANGESET_SNAPSHOT_BRANCH=${{ inputs.snapshot_branch }}" >> "$GITHUB_ENV"
+        echo "CHANGESET_SNAPSHOT_PROJECT=${{ inputs.snapshot_project }}" >> "$GITHUB_ENV"
+        if [ "${{ inputs.node_strict_workspace }}" = "true" ]; then
+          echo "CHANGESET_NODE_ARGS=--node-strict-workspace" >> "$GITHUB_ENV"
+        else
+          echo "CHANGESET_NODE_ARGS=" >> "$GITHUB_ENV"
+        fi
+
+    - name: Validate branch
+      shell: bash
+      run: |
+        current_branch=$(git branch --show-current)
+        if [ "$current_branch" != "$CHANGESET_SNAPSHOT_BRANCH" ]; then
+          echo "Branch mismatch: current=$current_branch expected=$CHANGESET_SNAPSHOT_BRANCH" >&2
+          exit 1
+        fi
+
+    - name: Check for changesets
+      shell: bash
+      run: |
+        projects_flag=""
+        if [ -n "$CHANGESET_SNAPSHOT_PROJECT" ]; then
+          projects_flag="--projects $CHANGESET_SNAPSHOT_PROJECT"
+        fi
+
+        if changeset $CHANGESET_NODE_ARGS each --filter open-changesets $projects_flag -- echo "found" 2>/dev/null | grep -q "found"; then
+          echo "has_changesets=true" >> "$GITHUB_ENV"
+        else
+          echo "has_changesets=false" >> "$GITHUB_ENV"
+        fi
+
+    - name: Create snapshot
+      if: env.has_changesets == 'true'
+      shell: bash
+      run: |
+        if [ -n "$CHANGESET_SNAPSHOT_PROJECT" ]; then
+          changeset $CHANGESET_NODE_ARGS snapshot \
+            --project "$CHANGESET_SNAPSHOT_PROJECT" \
+            --owner "$CHANGESET_OWNER" \
+            --repo "$CHANGESET_REPO"
+        else
+          changeset $CHANGESET_NODE_ARGS each --filter open-changesets -- \
+            changeset $CHANGESET_NODE_ARGS snapshot \
+              --owner "$CHANGESET_OWNER" \
+              --repo "$CHANGESET_REPO"
+        fi
