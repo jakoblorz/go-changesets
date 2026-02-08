@@ -14,8 +14,6 @@ concurrency:
   group: changeset-${{ github.ref }}
   cancel-in-progress: false
 
-env:
-  GOPRIVATE: github.com/jakoblorz
 
 jobs:
   changesets:
