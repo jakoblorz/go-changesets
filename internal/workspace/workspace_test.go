@@ -335,3 +335,8 @@ func TestWorkspaceDetect_GoModSingleProject(t *testing.T) {
 	require.Equal(t, models.ProjectTypeGo, project.Type)
 	require.Equal(t, "/workspace/go.mod", project.ManifestPath)
 }
+
+func TestNormalizeGoEnv_StripsDevNullSentinel(t *testing.T) {
+	goEnv := normalizeGoEnv("", "NUL")
+	require.Empty(t, goEnv.GoMod)
+}

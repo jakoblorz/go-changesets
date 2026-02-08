@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
@@ -101,7 +102,7 @@ func normalizeGoEnv(goWork, goMod string) GoEnv {
 		goWork = ""
 	}
 
-	if goMod == "/dev/null" {
+	if strings.EqualFold(goMod, os.DevNull) || strings.EqualFold(goMod, "NUL") {
 		goMod = ""
 	}
 
