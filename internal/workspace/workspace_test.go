@@ -1,6 +1,8 @@
 package workspace
 
 import (
+	"bytes"
+	"errors"
 	"testing"
 
 	"github.com/jakoblorz/go-changesets/internal/changeset"
@@ -11,6 +13,15 @@ import (
 
 const testWorkspaceRoot = "/test-workspace"
 
+type stubGoEnvReader struct {
+	env GoEnv
+	err error
+}
+
+func (r stubGoEnvReader) Read() (GoEnv, error) {
+	return r.env, r.err
+}
+
 func buildWorkspace(t *testing.T, setup func(*WorkspaceBuilder)) (*Workspace, *filesystem.MockFileSystem) {
 	t.Helper()
 	wb := NewWorkspaceBuilder(testWorkspaceRoot)
@@ -18,7 +29,7 @@ func buildWorkspace(t *testing.T, setup func(*WorkspaceBuilder)) (*Workspace, *f
 		setup(wb)
 	}
 	fs := wb.Build()
-	ws := New(fs)
+	ws := New(fs, WithGoEnv(NewMockGoEnvReader(fs)))
 	require.NoError(t, ws.Detect())
 	return ws, fs
 }
@@ -69,7 +80,7 @@ func TestWorkspaceDetect_NodeSingleProject(t *testing.T) {
 	fs.AddFile("/workspace/package.json", []byte(`{"name":"root-app","version":"0.1.0"}`))
 	fs.SetCurrentDir("/workspace")
 
-	ws := New(fs)
+	ws := New(fs, WithGoEnv(NewMockGoEnvReader(fs)))
 	require.NoError(t, ws.Detect())
 
 	require.Len(t, ws.Projects, 1)
@@ -87,7 +98,7 @@ func TestWorkspaceDetect_NodeWorkspaces(t *testing.T) {
 	fs.AddFile("/workspace/packages/web/package.json", []byte(`{"name":"web","version":"0.2.0"}`))
 	fs.SetCurrentDir("/workspace")
 
-	ws := New(fs)
+	ws := New(fs, WithGoEnv(NewMockGoEnvReader(fs)))
 	require.NoError(t, ws.Detect())
 
 	require.Len(t, ws.Projects, 2)
@@ -107,7 +118,7 @@ func TestWorkspaceDetect_NodeWorkspacesSkipsPrivate(t *testing.T) {
 	fs.AddFile("/workspace/packages/web/package.json", []byte(`{"name":"web","version":"0.2.0"}`))
 	fs.SetCurrentDir("/workspace")
 
-	ws := New(fs)
+	ws := New(fs, WithGoEnv(NewMockGoEnvReader(fs)))
 	require.NoError(t, ws.Detect())
 
 	require.Len(t, ws.Projects, 1)
@@ -123,7 +134,7 @@ func TestWorkspaceDetect_NodeWorkspacesIncludesUnlistedPackagesByDefault(t *test
 	fs.AddFile("/workspace/tools/cli/package.json", []byte(`{"name":"cli","version":"0.1.0"}`))
 	fs.SetCurrentDir("/workspace")
 
-	ws := New(fs)
+	ws := New(fs, WithGoEnv(NewMockGoEnvReader(fs)))
 	require.NoError(t, ws.Detect())
 
 	require.Len(t, ws.Projects, 3)
@@ -145,7 +156,7 @@ func TestWorkspaceDetect_NodeStrictWorkspaceSkipsUnlistedPackages(t *testing.T) 
 	fs.AddFile("/workspace/tools/cli/package.json", []byte(`{"name":"cli","version":"0.1.0"}`))
 	fs.SetCurrentDir("/workspace")
 
-	ws := New(fs, WithNodeStrictWorkspace(true))
+	ws := New(fs, WithNodeStrictWorkspace(true), WithGoEnv(NewMockGoEnvReader(fs)))
 	require.NoError(t, ws.Detect())
 
 	require.Len(t, ws.Projects, 2)
@@ -168,7 +179,7 @@ func TestWorkspaceDetect_NodeFuzzyRespectsGitIgnore(t *testing.T) {
 	fs.AddFile("/workspace/packages/public/package.json", []byte(`{"name":"public","version":"0.1.0"}`))
 	fs.SetCurrentDir("/workspace")
 
-	ws := New(fs)
+	ws := New(fs, WithGoEnv(NewMockGoEnvReader(fs)))
 	require.NoError(t, ws.Detect())
 
 	require.Len(t, ws.Projects, 1)
@@ -183,7 +194,7 @@ func TestWorkspaceDetect_MixedGoAndNodeWithCollision(t *testing.T) {
 	fs.AddFile("/workspace/packages/web/package.json", []byte(`{"name":"web","version":"1.0.0"}`))
 	fs.SetCurrentDir("/workspace")
 
-	ws := New(fs)
+	ws := New(fs, WithGoEnv(NewMockGoEnvReader(fs)))
 	require.NoError(t, ws.Detect())
 
 	require.Len(t, ws.Projects, 2)
@@ -199,7 +210,7 @@ func TestWorkspaceDetect_MixedGoAndNodeWithCollision(t *testing.T) {
 
 func TestWorkspaceDetect_WorkspaceNotFound(t *testing.T) {
 	fs := NewWorkspaceBuilder(testWorkspaceRoot).FileSystem()
-	ws := New(fs)
+	ws := New(fs, WithGoEnv(NewMockGoEnvReader(fs)))
 	err := ws.Detect()
 	require.Error(t, err)
 	require.Equal(t, "workspace not found", err.Error())
@@ -286,8 +297,41 @@ func TestWorkspaceDetect_AllProjectsDisabled(t *testing.T) {
 	wb.SetVersion("internal2", "false")
 
 	fs := wb.Build()
-	ws := New(fs)
+	ws := New(fs, WithGoEnv(NewMockGoEnvReader(fs)))
 	err := ws.Detect()
 	require.Error(t, err)
 	require.Equal(t, "failed to load projects: no projects found in workspace", err.Error())
+}
+
+func TestWorkspaceDetect_GoEnvErrorWarnsAndContinues(t *testing.T) {
+	fs := filesystem.NewMockFileSystem()
+	fs.AddFile("/workspace/package.json", []byte(`{"name":"root-app","version":"0.1.0"}`))
+	fs.SetCurrentDir("/workspace")
+
+	var warnings bytes.Buffer
+	ws := New(
+		fs,
+		WithGoEnv(stubGoEnvReader{err: errors.New("go env unavailable")}),
+		WithWarningWriter(&warnings),
+	)
+	require.NoError(t, ws.Detect())
+	require.Contains(t, warnings.String(), "warning: failed to read go env")
+
+	require.Len(t, ws.Projects, 1)
+	require.Equal(t, models.ProjectTypeNode, ws.Projects[0].Type)
+}
+
+func TestWorkspaceDetect_GoModSingleProject(t *testing.T) {
+	fs := filesystem.NewMockFileSystem()
+	fs.AddFile("/workspace/go.mod", []byte("module github.com/test/root\n\ngo 1.21\n"))
+	fs.SetCurrentDir("/workspace")
+
+	ws := New(fs, WithGoEnv(stubGoEnvReader{env: GoEnv{GoMod: "/workspace/go.mod"}}))
+	require.NoError(t, ws.Detect())
+
+	require.Len(t, ws.Projects, 1)
+	project := ws.Projects[0]
+	require.Equal(t, "root", project.Name)
+	require.Equal(t, models.ProjectTypeGo, project.Type)
+	require.Equal(t, "/workspace/go.mod", project.ManifestPath)
 }

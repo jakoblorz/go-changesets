@@ -31,7 +31,7 @@ func TestFullWorkflow(t *testing.T) {
 	ghMock.SetupRepository("test", "monorepo")
 
 	// Test: Workspace detection
-	ws := workspace.New(fs)
+	ws := workspace.New(fs, workspace.WithGoEnv(workspace.NewMockGoEnvReader(fs)))
 	require.NoError(t, ws.Detect())
 
 	require.Len(t, ws.Projects, 2)
@@ -146,7 +146,7 @@ func TestMultiProjectChangesets(t *testing.T) {
 	fs := wb.Build()
 
 	// Setup workspace
-	ws := workspace.New(fs)
+	ws := workspace.New(fs, workspace.WithGoEnv(workspace.NewMockGoEnvReader(fs)))
 	require.NoError(t, ws.Detect())
 
 	csManager := changeset.NewManager(fs, ws.ChangesetDir())
@@ -234,7 +234,7 @@ func TestVersionPublishWithGitTags(t *testing.T) {
 	ghMock.SetupRepository("test", "monorepo")
 
 	// Workspace setup
-	ws := workspace.New(fs)
+	ws := workspace.New(fs, workspace.WithGoEnv(workspace.NewMockGoEnvReader(fs)))
 	require.NoError(t, ws.Detect())
 
 	project, _ := ws.GetProject("auth")
@@ -321,7 +321,7 @@ func TestVersionPublishWithGitTags(t *testing.T) {
 	wb2.SetVersion("auth", "0.1.0") // Current version from previous release
 	fs2 := wb2.Build()
 
-	ws2 := workspace.New(fs2)
+	ws2 := workspace.New(fs2, workspace.WithGoEnv(workspace.NewMockGoEnvReader(fs2)))
 	ws2.Detect()
 	project2, _ := ws2.GetProject("auth")
 

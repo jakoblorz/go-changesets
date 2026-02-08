@@ -58,7 +58,7 @@ func TestSnapshotWorkflow(t *testing.T) {
 		require.True(t, release.Prerelease, "expected release to be marked as prerelease")
 
 		// Verify changesets were NOT deleted
-		ws := workspace.New(fs)
+		ws := workspace.New(fs, workspace.WithGoEnv(workspace.NewMockGoEnvReader(fs)))
 		ws.Detect()
 		csManager := changeset.NewManager(fs, ws.ChangesetDir())
 		remainingChangesets, _ := csManager.ReadAll()
@@ -93,7 +93,7 @@ func TestSnapshotWorkflow(t *testing.T) {
 		}
 
 		// Verify version.txt was updated
-		ws := workspace.New(fs)
+		ws := workspace.New(fs, workspace.WithGoEnv(workspace.NewMockGoEnvReader(fs)))
 		ws.Detect()
 		project, _ := ws.GetProject("backend")
 		versionFile := versioning.NewVersionFile(fs)
@@ -177,7 +177,7 @@ func TestSnapshotViaEach(t *testing.T) {
 	// Test: Use 'each' command with snapshot
 	// This simulates: changeset each --filter open-changesets | changeset snapshot
 	t.Run("snapshot via each command", func(t *testing.T) {
-		ws := workspace.New(fs)
+		ws := workspace.New(fs, workspace.WithGoEnv(workspace.NewMockGoEnvReader(fs)))
 		ws.Detect()
 
 		// Filter projects with open changesets
