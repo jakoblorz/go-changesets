@@ -95,7 +95,8 @@ func TestEach_FromTreeFile(t *testing.T) {
 									"number": 120,
 									"title": "Improve auth performance",
 									"url": "https://github.com/example/repo/pull/120",
-									"author": "alice"
+									"author": "alice",
+									"labels": ["release", "auth"]
 								}
 							}
 						],
@@ -130,7 +131,8 @@ func TestEach_FromTreeFile(t *testing.T) {
 									"number": 122,
 									"title": "Add MFA",
 									"url": "https://github.com/example/repo/pull/122",
-									"author": "bob"
+									"author": "bob",
+									"labels": ["release", "security"]
 								}
 							}
 						],

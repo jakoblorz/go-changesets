@@ -15,7 +15,7 @@ func TestTreeOutput_GetGroupForProject_AggregatesAcrossGroups(t *testing.T) {
 					{
 						Name: "analytics",
 						Changesets: []ChangesetInfo{
-							{ID: "change-a", Message: "analytics change from group A"},
+							{ID: "change-a", Message: "analytics change from group A", PR: &PullRequestInfo{Number: 10, Labels: []string{"release", "backend"}}},
 						},
 					},
 					{
@@ -32,7 +32,7 @@ func TestTreeOutput_GetGroupForProject_AggregatesAcrossGroups(t *testing.T) {
 					{
 						Name: "analytics",
 						Changesets: []ChangesetInfo{
-							{ID: "change-b", Message: "analytics change from group B"},
+							{ID: "change-b", Message: "analytics change from group B", PR: &PullRequestInfo{Number: 11, Labels: []string{"release", "analytics"}}},
 						},
 					},
 					{
@@ -58,4 +58,19 @@ func TestTreeOutput_GetGroupForProject_AggregatesAcrossGroups(t *testing.T) {
 	require.Equal(t, 2, projects["analytics"])
 	require.Equal(t, 1, projects["www"])
 	require.Equal(t, 1, projects["bookkeeper"])
+
+	analyticsLabels := map[string][]string{}
+	for _, project := range group.Projects {
+		if project.Name != "analytics" {
+			continue
+		}
+		for _, cs := range project.Changesets {
+			if cs.PR != nil {
+				analyticsLabels[cs.ID] = cs.PR.Labels
+			}
+		}
+	}
+
+	require.Equal(t, []string{"release", "backend"}, analyticsLabels["change-a"])
+	require.Equal(t, []string{"release", "analytics"}, analyticsLabels["change-b"])
 }
