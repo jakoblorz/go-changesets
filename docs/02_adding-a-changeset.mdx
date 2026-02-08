@@ -5,23 +5,11 @@ description: How to create a changeset during development.
 
 # Adding a Changeset
 
-Hi! You might be here because someone (or a bot) has asked you to "add a changeset" to your pull request. Let's walk through what that means and how to do it.
+Add a changeset alongside code changes so release intent is captured early and reviewable.
 
-## What is a Changeset?
+## Create one
 
-A changeset is a small file that captures information about the changes you've made. It contains three key pieces of information:
-
-- **Which projects** are affected by your changes
-- **How much** the version should increase ([semantic version bump type](https://semver.org/))
-- **What changed** - a description that will appear in the changelog
-
-When your changes are ready to be released, these changesets tell `go-changeset` how to update versions and generate changelog entries automatically.
-
-## Adding a Changeset
-
-### Quick Start
-
-Run this command from your repository root:
+From the repo root:
 
 ```bash
 changeset add
@@ -29,340 +17,42 @@ changeset add
 changeset
 ```
 
-This launches an **interactive terminal interface** that guides you through creating a changeset.
+You will:
+1. Select the affected projects.
+2. Choose a bump type (patch/minor/major).
+3. Write a short message that will appear in the changelog.
 
-### The Interactive Process
+## Bump types (quick guide)
 
-#### Step 1: Select Projects
+- patch: bug fixes, internal refactors, docs
+- minor: new backwards-compatible features
+- major: breaking changes
 
-You'll see a list of all projects in your monorepo. Use:
-- <kbd>↑</kbd> / <kbd>↓</kbd> - Navigate between projects
-- <kbd>Space</kbd> - Toggle selection (✓)
-- <kbd>Enter</kbd> - Confirm selection
+If you are pre-1.0, the same rules apply.
 
-```
-┌─────────────────────────────────────────────┐
-│ Select Projects                             │
-├─────────────────────────────────────────────┤
-│   ✓ auth                                    │
-│   ✓ api                                     │
-│     shared                                  │
-│     cli-tools                               │
-└─────────────────────────────────────────────┘
-```
+## What gets created
 
-**Tip:** Select all projects that are affected by your changes. If you're unsure, it's better to include a project than to miss it.
+One file per selected project in `.changeset/`, all created in the same commit when you commit them.
 
-#### Step 2: Choose Version Bump
-
-Select the appropriate semantic version bump type:
-
-- <kbd>↑</kbd> / <kbd>↓</kbd> - Navigate between options
-- <kbd>Enter</kbd> - Confirm selection
-
-```
-┌─────────────────────────────────────────────┐
-│ Select Bump Type                            │
-├─────────────────────────────────────────────┤
-│   ○ patch - Bug fixes (0.1.0 → 0.1.1)      │
-│   ● minor - New features (0.1.0 → 0.2.0)   │
-│   ○ major - Breaking changes (0.1.0 → 1.0.0)│
-└─────────────────────────────────────────────┘
-```
-
-**Important:** The same bump type applies to all selected projects. This is intentional - if your change is a "minor" feature for one project, it should be minor for all affected projects to keep versioning consistent.
-
-##### When to Use Each Bump Type
-
-**Patch (0.1.0 → 0.1.1)**
-- Bug fixes that don't change the API
-- Performance improvements
-- Documentation updates
-- Internal refactoring
-- Dependency updates (non-breaking)
-
-**Minor (0.1.0 → 0.2.0)**
-- New features (backward compatible)
-- New public functions/methods
-- New configuration options
-- Deprecations (but not removals)
-- Expanded functionality
-
-**Major (0.1.0 → 1.0.0)**
-- Breaking API changes
-- Removed public functions/methods
-- Changed function signatures
-- Behavioral changes that could break existing usage
-- Major architectural changes
-
-**Special case - 0.x.x versions:**
-Even for pre-1.0 versions, follow semver guidelines. Breaking changes should still be major bumps (0.5.0 → 1.0.0).
-
-#### Step 3: Write Your Message
-
-A multi-line text editor opens where you describe your changes:
-
-```
-┌─────────────────────────────────────────────┐
-│ Changeset Message                           │
-├─────────────────────────────────────────────┤
-│ Add OAuth2 authentication support          │
-│                                             │
-│ This update adds OAuth2 authentication     │
-│ with support for Google and GitHub         │
-│ providers.                                  │
-│                                             │
-│ Breaking changes:                           │
-│ - Old BasicAuth removed                    │
-│ - New OAuth2Config required                │
-│                                             │
-│ Press Ctrl+D when finished                 │
-└─────────────────────────────────────────────┘
-```
-
-**Editor features:**
-- Full markdown support
-- Multi-line editing
-- Word wrap for readability
-- <kbd>Ctrl+D</kbd> or <kbd>Ctrl+C</kbd> to finish
-
-#### Step 4: Confirmation
-
-After you finish writing, `go-changeset` creates your changeset files:
-
-```bash
-✓ Changeset Created
-
-Created 2 changeset file(s):
-  1. dazzling_mouse_V1StGXR8.md (auth: minor)
-  2. cheerful_panda_kG9F5ulE.md (api: minor)
-```
-
-**Note the friendly names!** Changesets use memorable identifiers like `dazzling_mouse` instead of random strings, making them easy to reference in conversations and PRs.
-
-## What Gets Created?
-
-For each selected project, a separate changeset file is created in `.changeset/`:
-
-**Example:** `.changeset/dazzling_mouse_V1StGXR8.md`
-```markdown
+```md
 ---
 auth: minor
 ---
 
-Add OAuth2 authentication support
-
-This update adds OAuth2 authentication with support for Google and GitHub providers.
-
-Breaking changes:
-- Old BasicAuth removed
-- New OAuth2Config required
+Add OAuth2 support
 ```
 
-**File format:**
-- **Frontmatter (YAML)**: `{project-name}: {bump-type}`
-- **Body (Markdown)**: Your description (will appear in CHANGELOG.md)
+Selecting multiple projects creates multiple files with the same message.
 
-## Best Practices
+## Edit later
 
-### Write Good Changeset Messages
+Changesets are plain Markdown. You can edit the frontmatter bump type and the message before running `changeset version`.
 
-A good changeset should answer three questions:
+## When to skip
 
-**1. WHAT changed?**
-```markdown
-✅ Good: "Add OAuth2 authentication support"
-❌ Bad: "Update auth"
-```
+Skip changesets for changes that do not affect users: docs-only, tests-only, CI/build scripts, or formatting-only changes.
 
-**2. WHY did it change?**
-```markdown
-✅ Good: "Add OAuth2 to support enterprise SSO requirements"
-❌ Bad: "Auth changes"
-```
+## Next steps
 
-**3. HOW should consumers update their code?**
-```markdown
-✅ Good:
-"Breaking changes:
-- Replace `NewAuth()` with `NewOAuth2Auth()`
-- Update config to include `OAuth2Config`"
-
-❌ Bad: "See code for details"
-```
-
-### Example Messages by Type
-
-**Patch (Bug Fix):**
-```markdown
-Fix memory leak in session handler
-
-The session cleanup goroutine was not properly closed,
-causing memory to accumulate over time. This fix ensures
-proper cleanup on context cancellation.
-```
-
-**Minor (New Feature):**
-```markdown
-Add support for Redis-based session storage
-
-This adds a new RedisStore option for distributed session
-management. The existing in-memory store remains the default.
-
-Usage:
-- Set `SessionStore: redis.NewStore(client)` in config
-```
-
-**Major (Breaking Change):**
-```markdown
-Redesign authentication API for better security
-
-The authentication API has been redesigned to use
-context-based tokens instead of global state.
-
-Breaking changes:
-- `Auth.Login(user, pass)` → `Auth.Login(ctx, user, pass)`
-- `Auth.Token()` removed (use `TokenFromContext(ctx)`)
-- Config now requires `TokenSecret` field
-
-Migration guide: https://link-to-migration-doc
-```
-
-### Multiple Changesets in One PR
-
-You can add multiple changesets to a single pull request when:
-
-**Separate logical changes:**
-```bash
-# Change 1: Add feature to auth
-changeset add  # Select: auth, bump: minor
-
-# Change 2: Fix bug in api  
-changeset add  # Select: api, bump: patch
-```
-
-**Different bump types for different projects:**
-```bash
-# Breaking change in auth, but just a minor update in api
-changeset add  # Select: auth, bump: major
-changeset add  # Select: api, bump: minor
-```
-
-**Stacking related changes:**
-```bash
-# First feature
-changeset add  # "Add OAuth2 base implementation"
-
-# Enhancement built on top
-changeset add  # "Add Google OAuth2 provider"
-
-# Related improvement
-changeset add  # "Add token refresh mechanism"
-```
-
-All changesets will be applied together when the project is versioned.
-
-**Related changesets:** When you select multiple projects in one `changeset add` run, those changesets are created in the same commit and are automatically related. Learn more about [changeset groups](./changeset-groups.mdx) and how to coordinate related release PRs.
-
-## Editing Changesets
-
-Changesets are just markdown files! You can edit them directly:
-
-```bash
-# Edit the changeset message
-vim .changeset/dazzling_mouse_V1StGXR8.md
-
-# Change the bump type
-# Change "minor" to "patch" in the frontmatter
-
-# Expand the description
-# Add more details in the markdown body
-```
-
-**Common edits:**
-- Fix typos in the description
-- Add more context after code review feedback
-- Change bump type if you realized it should be different
-- Add migration instructions for breaking changes
-
-## Committing Your Changeset
-
-Once you're happy with your changeset, commit it with your code changes:
-
-```bash
-# Add changeset files
-git add .changeset/
-
-# Commit with your feature
-git commit -m "feat: add OAuth2 support"
-
-# Push to your branch
-git push origin feature/oauth2
-```
-
-**Important:** Changesets should be committed to the same branch as the code changes they describe. When your PR is merged, the changesets will be consumed and turned into version bumps and changelog entries.
-
-## When NOT to Add a Changeset
-
-Not every change requires a changeset. You can skip changesets for:
-
-- **Documentation-only changes** - README updates, comment improvements
-- **Test-only changes** - Adding or fixing tests without changing behavior
-- **Internal tooling** - Changes to build scripts, development tools
-- **CI/CD updates** - GitHub Actions workflow changes
-- **Dependency updates** - Routine dependency bumps (unless they enable new features)
-- **Code formatting** - Linting, formatting, whitespace changes
-
-**Rule of thumb:** If your change doesn't affect users of the package (either the API, behavior, or features), you probably don't need a changeset.
-
-## Troubleshooting
-
-### "No projects found in workspace"
-
-**Cause:** Not running from workspace root or no `go.work` file
-
-**Solution:**
-```bash
-# Make sure you're in the repository root
-cd /path/to/your/monorepo
-
-# Verify go.work exists
-ls go.work
-
-# Try again
-changeset add
-```
-
-### Changeset file already exists
-
-**Cause:** The randomly generated name collided (extremely rare!)
-
-**Solution:** Just run `changeset add` again - a new unique name will be generated.
-
-### Can't find project I want to select
-
-**Cause:** Project might be disabled (version.txt = "false")
-
-**Solution:**
-```bash
-# Check if project is disabled
-cat packages/my-project/version.txt
-
-# If it says "false", enable it:
-echo "0.0.0" > packages/my-project/version.txt
-```
-
-## Next Steps
-
-After adding your changeset:
-
-1. ✅ **Commit** the changeset files with your code changes
-2. ✅ **Push** to your feature branch
-3. ✅ **Create a PR** and request review
-4. ✅ **Merge** when approved
-
-When your PR is merged to main, the CI workflow will:
-- Create a version PR with updated versions and changelogs
-- After review and merge, automatically publish GitHub releases
-
-Learn more about the complete workflow in [Introduction to Using Changesets](./intro-to-using-changesets.mdx).
+- Learn the overall flow: [Introduction to Using Changesets](./intro-to-using-changesets.mdx)
+- Coordinate multi-project work: [Changeset Groups](./changeset-groups.mdx)

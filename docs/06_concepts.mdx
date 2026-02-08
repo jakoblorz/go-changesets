@@ -9,30 +9,25 @@ This page describes the key concepts used by `go-changeset` so you can reason ab
 
 ## Workspace detection
 
-`go-changeset` looks for a **workspace root** by walking up from the current working directory and stopping at the first directory that contains a `go.work` or a `package.json`:
+`go-changeset` walks up from the current directory and stops at the first directory that contains a `go.work` or a `package.json`.
 
-- If it finds a `go.work`, it treats the repo as a Go workspace and discovers Go projects from `use` entries.
-- If it finds a `package.json`, it can also discover Node projects via npm/yarn workspaces.
-- If both files exist in the same root, it loads both Go and Node projects.
-- Discovery of projects comes only from `go.work` `use` entries and the `package.json` workspaces list.
+- If it finds a `go.work`, it treats the repo as a Go workspace and loads projects from `use` entries.
+- If it finds a `package.json`, it loads Node projects from workspaces (or the root package if it is not private).
+- If both exist in the same root, it loads both Go and Node projects.
+- Unless `--node-strict-workspace` is enabled, Node discovery also scans for `package.json` files while honoring `.gitignore`.
 
 ## Projects
 
-A **project** is the unit of versioning and releasing.
+A project is the unit of versioning and releasing.
 
-- **Go projects** are discovered by locating `go.mod` files referenced by `go.work`.
-- **Node projects** are discovered via `package.json` workspaces.
+- **Go projects**: discovered by `go.work` `use` entries and `go.mod` files.
+- **Node projects**: discovered via `package.json` workspaces (and optional fuzzy scan).
 
-Each project has:
-
-- `name`: derived from the module/package name (deduped if needed)
-- `root`: the project root directory
+Each project has a name, a root path, and a manifest (`go.mod` or `package.json`).
 
 ## Changesets
 
-A **changeset** is a Markdown file in `.changeset/` with YAML frontmatter.
-
-Example:
+A changeset is a Markdown file in `.changeset/` with YAML frontmatter.
 
 ```md
 ---
@@ -42,53 +37,27 @@ auth: minor
 Add OAuth2 support
 ```
 
-### Human-friendly filenames
+When you select multiple projects, `changeset add` creates one file per project in the same commit.
 
-Changesets are stored as `.changeset/{id}.md`, where `{id}` is generated to be easy to refer to in conversations:
+## Version sources
 
-- `{adjective}_{animal}_{nanoid}`
-- Example: `dazzling_mouse_V1StGXR8.md`
+- **Go**: `version.txt` at the project root.
+- **Node**: the `version` field in `package.json`.
 
-## Version storage
+## Disabling projects
 
-- **Go projects** store their version in `version.txt` at the project root.
-- **Node projects** store their version in the `version` field of `package.json`.
+- **Go**: set `version.txt` to `false` to hide the project.
+- **Node**: set `private: true` in `package.json` to hide the project.
 
-### Disabling Go projects
-
-To hide a Go project from `go-changeset`, set its `version.txt` to `false`:
-
-```bash
-echo "false" > path/to/project/version.txt
-```
-
-### Disabling Node projects
-
-To hide a Node project from `go-changeset`, mark it as private in its `package.json`:
-
-```json
-{
-  "name": "internal-tools",
-  "private": true
-}
-```
-
-## Git tags
+## Tags
 
 Published versions are represented by git tags:
 
-- Go tags:
-  - Final releases: `{project}@v{version}` (example: `auth@v1.2.3`)
-  - Snapshots/RCs: `{project}@v{version}-rc{N}` (example: `auth@v1.3.0-rc1`)
-- Node tags:
-  - Final releases: `{project}@{version}` (example: `web@1.2.3`)
-  - Snapshots/RCs: `{project}@{version}-rc{N}` (example: `web@1.3.0-rc1`)
+- Go final: `project@v1.2.3`
+- Go RC: `project@v1.2.3-rc0`
+- Node final: `project@1.2.3`
+- Node RC: `project@1.2.3-rc0`
 
-## Changelogs
+## Changelogs and templates
 
-`go-changeset` generates/updates `CHANGELOG.md` files per project.
-
-- The `changelog` command prints the entry that would be added (preview)
-- The `version` command appends a new entry and consumes changesets
-
-You can customize formatting by placing a `.changeset/changelog.tmpl` template in your repo or project tree.
+`go-changeset` generates per-project `CHANGELOG.md` files. You can customize formatting with `.changeset/changelog.tmpl`.
