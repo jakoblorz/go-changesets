@@ -92,6 +92,7 @@ func (f *Flow) selectProjects() ([]string, error) {
 	projectOptions := make([]projectOption, 0, len(projects))
 	maxNameWidth := 0
 	maxKindWidth := 0
+	maxVersionWidth := 0
 
 	for _, project := range projects {
 		option := projectOption{
@@ -104,6 +105,9 @@ func (f *Flow) selectProjects() ([]string, error) {
 		if width := len(option.name); width > maxNameWidth {
 			maxNameWidth = width
 		}
+		if width := len(option.version); width > maxVersionWidth {
+			maxVersionWidth = width
+		}
 		if width := len(string(option.kind)); width > maxKindWidth {
 			maxKindWidth = width
 		}
@@ -113,13 +117,15 @@ func (f *Flow) selectProjects() ([]string, error) {
 	opts := make([]huh.Option[string], 0, len(projectOptions))
 	for _, option := range projectOptions {
 		namePadding := maxNameWidth - len(option.name)
+		versionPadding := maxVersionWidth - len(option.version)
 		kindLabel := string(option.kind)
 		kindPadding := maxKindWidth - len(kindLabel)
 		label := option.name +
 			strings.Repeat(" ", namePadding+columnGap) +
+			tui.SubtleStyle.Render(option.version) +
+			strings.Repeat(" ", versionPadding+columnGap) +
 			renderProjectKind(option.kind) +
-			strings.Repeat(" ", kindPadding+columnGap) +
-			tui.SubtleStyle.Render(option.version)
+			strings.Repeat(" ", kindPadding)
 		opts = append(opts, huh.NewOption(label, option.name))
 	}
 
