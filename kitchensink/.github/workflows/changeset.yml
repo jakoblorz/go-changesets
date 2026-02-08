@@ -20,5 +20,5 @@ jobs:
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     uses: ./.github/workflows/changesets.yml
     secrets:
-      version_token: ${{ secrets.CI_PAT_TO_TRIGGER_RELEASE_ACTION }}
-      publish_token: ${{ secrets.CI_PAT_TO_TRIGGER_RELEASE_ACTION }}
+      version_token: ${{ secrets.GITHUB_TOKEN }}
+      publish_token: ${{ secrets.GITHUB_TOKEN }}
