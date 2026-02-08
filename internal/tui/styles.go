@@ -57,6 +57,9 @@ var (
 	SubtleStyle = lipgloss.NewStyle().
 			Foreground(lipgloss.Color("#666666"))
 
+	SubtleErrorStyle = lipgloss.NewStyle().
+				Foreground(lipgloss.Color("#E4A0A0"))
+
 	GoKindStyle = lipgloss.NewStyle().
 			Foreground(lipgloss.Color("#00ADD8"))
 

@@ -82,9 +82,10 @@ func (f *Flow) Run() (*Result, error) {
 
 func (f *Flow) selectProjects() ([]string, error) {
 	type projectOption struct {
-		name    string
-		kind    models.ProjectType
-		version string
+		name     string
+		kind     models.ProjectType
+		version  string
+		resolved bool
 	}
 
 	projects := f.workspace.Projects
@@ -95,10 +96,12 @@ func (f *Flow) selectProjects() ([]string, error) {
 	maxVersionWidth := 0
 
 	for _, project := range projects {
+		versionText, versionResolved := f.projectVersion(project)
 		option := projectOption{
-			name:    project.Name,
-			kind:    project.Type,
-			version: f.projectVersion(project),
+			name:     project.Name,
+			kind:     project.Type,
+			version:  versionText,
+			resolved: versionResolved,
 		}
 		projectOptions = append(projectOptions, option)
 
@@ -120,9 +123,13 @@ func (f *Flow) selectProjects() ([]string, error) {
 		versionPadding := maxVersionWidth - len(option.version)
 		kindLabel := string(option.kind)
 		kindPadding := maxKindWidth - len(kindLabel)
+		versionLabel := tui.SubtleStyle.Render(option.version)
+		if !option.resolved {
+			versionLabel = tui.SubtleErrorStyle.Render(option.version)
+		}
 		label := option.name +
 			strings.Repeat(" ", namePadding+columnGap) +
-			tui.SubtleStyle.Render(option.version) +
+			versionLabel +
 			strings.Repeat(" ", versionPadding+columnGap) +
 			renderProjectKind(option.kind) +
 			strings.Repeat(" ", kindPadding)
@@ -257,13 +264,13 @@ func (f *Flow) createChangesets(projects []string, bump models.BumpType, message
 	return created, nil
 }
 
-func (f *Flow) projectVersion(project *models.Project) string {
+func (f *Flow) projectVersion(project *models.Project) (string, bool) {
 	versionStore := versioning.NewVersionStore(f.fs, project.Type)
 	version, err := versionStore.Read(project.RootPath)
 	if err != nil {
-		return "0.0.0"
+		return "version not resolved", false
 	}
-	return version.String()
+	return version.String(), true
 }
 
 func renderProjectKind(kind models.ProjectType) string {
