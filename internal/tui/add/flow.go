@@ -11,6 +11,7 @@ import (
 	"github.com/jakoblorz/go-changesets/internal/filesystem"
 	"github.com/jakoblorz/go-changesets/internal/models"
 	"github.com/jakoblorz/go-changesets/internal/tui"
+	"github.com/jakoblorz/go-changesets/internal/versioning"
 	"github.com/jakoblorz/go-changesets/internal/workspace"
 )
 
@@ -80,12 +81,46 @@ func (f *Flow) Run() (*Result, error) {
 }
 
 func (f *Flow) selectProjects() ([]string, error) {
-	projects := f.workspace.GetProjectNames()
-	selected := make([]string, 0, len(projects))
+	type projectOption struct {
+		name    string
+		kind    models.ProjectType
+		version string
+	}
 
-	opts := make([]huh.Option[string], 0, len(projects))
-	for _, p := range projects {
-		opts = append(opts, huh.NewOption(p, p))
+	projects := f.workspace.Projects
+	selected := make([]string, 0, len(projects))
+	projectOptions := make([]projectOption, 0, len(projects))
+	maxNameWidth := 0
+	maxKindWidth := 0
+
+	for _, project := range projects {
+		option := projectOption{
+			name:    project.Name,
+			kind:    project.Type,
+			version: f.projectVersion(project),
+		}
+		projectOptions = append(projectOptions, option)
+
+		if width := len(option.name); width > maxNameWidth {
+			maxNameWidth = width
+		}
+		if width := len(string(option.kind)); width > maxKindWidth {
+			maxKindWidth = width
+		}
+	}
+
+	const columnGap = 2
+	opts := make([]huh.Option[string], 0, len(projectOptions))
+	for _, option := range projectOptions {
+		namePadding := maxNameWidth - len(option.name)
+		kindLabel := string(option.kind)
+		kindPadding := maxKindWidth - len(kindLabel)
+		label := option.name +
+			strings.Repeat(" ", namePadding+columnGap) +
+			renderProjectKind(option.kind) +
+			strings.Repeat(" ", kindPadding+columnGap) +
+			tui.SubtleStyle.Render(option.version)
+		opts = append(opts, huh.NewOption(label, option.name))
 	}
 
 	keyMap := huh.NewDefaultKeyMap()
@@ -214,4 +249,24 @@ func (f *Flow) createChangesets(projects []string, bump models.BumpType, message
 	}
 
 	return created, nil
+}
+
+func (f *Flow) projectVersion(project *models.Project) string {
+	versionStore := versioning.NewVersionStore(f.fs, project.Type)
+	version, err := versionStore.Read(project.RootPath)
+	if err != nil {
+		return "0.0.0"
+	}
+	return version.String()
+}
+
+func renderProjectKind(kind models.ProjectType) string {
+	switch kind {
+	case models.ProjectTypeGo:
+		return tui.GoKindStyle.Render(string(kind))
+	case models.ProjectTypeNode:
+		return tui.NodeKindStyle.Render(string(kind))
+	default:
+		return string(kind)
+	}
 }

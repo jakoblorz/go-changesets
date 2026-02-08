@@ -57,6 +57,12 @@ var (
 	SubtleStyle = lipgloss.NewStyle().
 			Foreground(lipgloss.Color("#666666"))
 
+	GoKindStyle = lipgloss.NewStyle().
+			Foreground(lipgloss.Color("#00ADD8"))
+
+	NodeKindStyle = lipgloss.NewStyle().
+			Foreground(lipgloss.Color("#90EE90"))
+
 	// Focus styling
 	FocusedStyle = lipgloss.NewStyle().
 			Foreground(lipgloss.Color("#F28C28"))
