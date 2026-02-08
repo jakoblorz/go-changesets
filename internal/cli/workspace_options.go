@@ -10,11 +10,16 @@ import (
 const nodeStrictWorkspaceFlag = "node-strict-workspace"
 
 func workspaceOptionsFromCmd(cmd *cobra.Command) []workspace.Option {
+	var opts []workspace.Option
 	if nodeStrictWorkspace(cmd) {
-		return []workspace.Option{workspace.WithNodeStrictWorkspace(true)}
+		opts = append(opts, workspace.WithNodeStrictWorkspace(true))
 	}
 
-	return nil
+	if cmd != nil {
+		opts = append(opts, workspace.WithWarningWriter(cmd.ErrOrStderr()))
+	}
+
+	return opts
 }
 
 func nodeStrictWorkspace(cmd *cobra.Command) bool {

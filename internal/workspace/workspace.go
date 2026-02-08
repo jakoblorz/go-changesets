@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"io"
 	"io/fs"
 	"path/filepath"
 	"strings"
@@ -24,6 +25,8 @@ var (
 // Workspace represents a workspace containing Go and/or Node projects.
 type Workspace struct {
 	fs                  filesystem.FileSystem
+	goEnv               GoEnvReader
+	warningWriter       io.Writer
 	RootPath            string
 	WorkFilePath        string
 	Projects            []*models.Project
@@ -40,10 +43,30 @@ func WithNodeStrictWorkspace(enabled bool) Option {
 	}
 }
 
+// WithGoEnv overrides the go env reader (useful for tests).
+func WithGoEnv(goEnv GoEnvReader) Option {
+	return func(w *Workspace) {
+		w.goEnv = goEnv
+	}
+}
+
+// WithWarningWriter sets the sink for non-fatal warnings (nil disables).
+func WithWarningWriter(writer io.Writer) Option {
+	return func(w *Workspace) {
+		w.warningWriter = writer
+	}
+}
+
 // New creates a new Workspace instance.
 func New(fs filesystem.FileSystem, options ...Option) *Workspace {
+	goEnv := newOSGoEnvReader(fs)
+	if _, ok := fs.(*filesystem.MockFileSystem); ok {
+		goEnv = NewMockGoEnvReader(fs)
+	}
+
 	ws := &Workspace{
 		fs:       fs,
+		goEnv:    goEnv,
 		Projects: []*models.Project{},
 	}
 
@@ -56,84 +79,119 @@ func New(fs filesystem.FileSystem, options ...Option) *Workspace {
 
 // Detect finds and loads the workspace from the current directory.
 func (w *Workspace) Detect() error {
-	root, hasGoWork, hasPackageJSON, err := w.findWorkspaceRoot()
+	goProjects, goRoot, err := w.detectGoProjects()
 	if err != nil {
-		return err
-	}
-
-	w.RootPath = root
-	if hasGoWork {
-		w.WorkFilePath = filepath.Join(root, "go.work")
-	}
-
-	if err := w.loadProjects(hasGoWork, hasPackageJSON); err != nil {
 		return fmt.Errorf("failed to load projects: %w", err)
 	}
 
-	return nil
-}
-
-// findWorkspaceRoot walks up the directory tree looking for go.work or package.json.
-func (w *Workspace) findWorkspaceRoot() (string, bool, bool, error) {
-	cwd, err := w.fs.Getwd()
-	if err != nil {
-		return "", false, false, fmt.Errorf("failed to get working directory: %w", err)
-	}
-
-	dir := cwd
-	for {
-		goWorkPath := filepath.Join(dir, "go.work")
-		pkgJSONPath := filepath.Join(dir, "package.json")
-
-		hasGoWork := w.fs.Exists(goWorkPath)
-		hasPackage := w.fs.Exists(pkgJSONPath)
-
-		if hasGoWork || hasPackage {
-			return dir, hasGoWork, hasPackage, nil
-		}
-
-		parent := filepath.Dir(dir)
-		if parent == dir {
-			return "", false, false, fmt.Errorf("workspace not found")
-		}
-		dir = parent
-	}
-}
-
-func (w *Workspace) loadProjects(hasGoWork, hasPackageJSON bool) error {
-	var projects []*models.Project
-
-	if hasGoWork {
-		goProjects, err := w.loadGoProjects()
-		if err != nil {
-			return err
-		}
-		projects = append(projects, goProjects...)
-	}
-
-	nodeProjects, err := w.loadNodeProjects(hasPackageJSON)
+	nodeRoot, err := w.findNodeRoot()
 	if err != nil {
 		return err
 	}
-	projects = append(projects, nodeProjects...)
 
+	scanRoot := goRoot
+	if scanRoot == "" {
+		scanRoot = nodeRoot
+	}
+
+	nodeProjects, err := w.loadNodeProjects(nodeRoot, scanRoot)
+	if err != nil {
+		return fmt.Errorf("failed to load projects: %w", err)
+	}
+
+	if goRoot == "" && nodeRoot == "" {
+		return fmt.Errorf("workspace not found")
+	}
+
+	if goRoot != "" {
+		w.RootPath = goRoot
+	} else {
+		w.RootPath = nodeRoot
+	}
+
+	projects := append(goProjects, nodeProjects...)
 	projects = dedupeProjectNames(projects)
 	if len(projects) == 0 {
-		return fmt.Errorf("no projects found in workspace")
+		return fmt.Errorf("failed to load projects: no projects found in workspace")
 	}
 
 	w.Projects = projects
 	return nil
 }
 
+func (w *Workspace) warnf(format string, args ...interface{}) {
+	if w.warningWriter == nil {
+		return
+	}
+
+	_, _ = fmt.Fprintf(w.warningWriter, format+"\n", args...)
+}
+
+func (w *Workspace) detectGoProjects() ([]*models.Project, string, error) {
+	if w.goEnv == nil {
+		return nil, "", nil
+	}
+
+	goEnv, err := w.goEnv.Read()
+	if err != nil {
+		w.warnf("warning: failed to read go env; skipping Go project detection: %v", err)
+		return nil, "", nil
+	}
+
+	if goEnv.GoWork != "" {
+		w.WorkFilePath = goEnv.GoWork
+		root := filepath.Dir(goEnv.GoWork)
+		projects, err := w.loadGoProjects(root, goEnv.GoWork)
+		if err != nil {
+			return nil, "", err
+		}
+		return projects, root, nil
+	}
+
+	if goEnv.GoMod != "" {
+		root := filepath.Dir(goEnv.GoMod)
+		versionStore := versioning.NewVersionStore(w.fs, models.ProjectTypeGo)
+		if !versionStore.IsEnabled(root) {
+			return nil, root, nil
+		}
+
+		project, err := w.loadGoProject(root)
+		if err != nil {
+			return nil, "", err
+		}
+
+		return []*models.Project{project}, root, nil
+	}
+
+	return nil, "", nil
+}
+
+// findNodeRoot walks up the directory tree looking for package.json.
+func (w *Workspace) findNodeRoot() (string, error) {
+	cwd, err := w.fs.Getwd()
+	if err != nil {
+		return "", fmt.Errorf("failed to get working directory: %w", err)
+	}
+
+	pkgPath, found, err := findFileUp(w.fs, cwd, "package.json")
+	if err != nil {
+		return "", err
+	}
+	if !found {
+		return "", nil
+	}
+
+	return filepath.Dir(pkgPath), nil
+}
+
 // loadGoProjects parses go.work and loads all Go projects.
-func (w *Workspace) loadGoProjects() ([]*models.Project, error) {
-	data, err := w.fs.ReadFile(w.WorkFilePath)
+func (w *Workspace) loadGoProjects(root, workFilePath string) ([]*models.Project, error) {
+	data, err := w.fs.ReadFile(workFilePath)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read go.work: %w", err)
 	}
 
-	workFile, err := modfile.ParseWork(w.WorkFilePath, data, nil)
+	workFile, err := modfile.ParseWork(workFilePath, data, nil)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse go.work: %w", err)
 	}
@@ -142,7 +200,7 @@ func (w *Workspace) loadGoProjects() ([]*models.Project, error) {
 
 	var projects []*models.Project
 	for _, use := range workFile.Use {
-		projectPath := filepath.Join(w.RootPath, use.Path)
+		projectPath := filepath.Join(root, use.Path)
 
 		if !versionStore.IsEnabled(projectPath) {
 			continue
@@ -217,8 +275,8 @@ func extractProjectName(modulePath string) string {
 }
 
 // loadNodeManifestProjects discovers Node projects via package.json workspaces (or root).
-func (w *Workspace) loadNodeManifestProjects() ([]*models.Project, error) {
-	rootPackagePath := filepath.Join(w.RootPath, "package.json")
+func (w *Workspace) loadNodeManifestProjects(rootPath string) ([]*models.Project, error) {
+	rootPackagePath := filepath.Join(rootPath, "package.json")
 	if !w.fs.Exists(rootPackagePath) {
 		return nil, nil
 	}
@@ -234,13 +292,13 @@ func (w *Workspace) loadNodeManifestProjects() ([]*models.Project, error) {
 		if rootPkg.Private {
 			return nil, nil
 		}
-		project := nodeProjectFromPackageJSON(rootPkg, w.RootPath, rootPackagePath)
+		project := nodeProjectFromPackageJSON(rootPkg, rootPath, rootPackagePath)
 		return []*models.Project{project}, nil
 	}
 
 	var projects []*models.Project
 	for _, pattern := range workspaces {
-		globPattern := filepath.Join(w.RootPath, pattern)
+		globPattern := filepath.Join(rootPath, pattern)
 		matches, err := w.fs.Glob(globPattern)
 		if err != nil {
 			return nil, fmt.Errorf("failed to glob workspace pattern %s: %w", pattern, err)
@@ -278,23 +336,23 @@ func (w *Workspace) loadNodeManifestProjects() ([]*models.Project, error) {
 	return projects, nil
 }
 
-func (w *Workspace) fuzzyLoadNodeProjects() ([]*models.Project, error) {
-	ignore, err := w.loadRootGitIgnore()
+func (w *Workspace) fuzzyLoadNodeProjects(rootPath string) ([]*models.Project, error) {
+	ignore, err := w.loadRootGitIgnore(rootPath)
 	if err != nil {
 		return nil, err
 	}
 
 	ignoredDirs := make(map[string]struct{})
 	var projects []*models.Project
-	if err := w.fs.WalkDir(w.RootPath, func(path string, entry fs.DirEntry, walkErr error) error {
+	if err := w.fs.WalkDir(rootPath, func(path string, entry fs.DirEntry, walkErr error) error {
 		if walkErr != nil {
 			return walkErr
 		}
-		if path == w.RootPath {
+		if path == rootPath {
 			return nil
 		}
 
-		rel, relErr := filepath.Rel(w.RootPath, path)
+		rel, relErr := filepath.Rel(rootPath, path)
 		if relErr != nil {
 			return relErr
 		}
@@ -356,21 +414,21 @@ func (w *Workspace) fuzzyLoadNodeProjects() ([]*models.Project, error) {
 	return projects, nil
 }
 
-func (w *Workspace) loadNodeProjects(hasPackageJSON bool) ([]*models.Project, error) {
+func (w *Workspace) loadNodeProjects(manifestRoot, scanRoot string) ([]*models.Project, error) {
 	var normal []*models.Project
-	if hasPackageJSON {
-		projects, err := w.loadNodeManifestProjects()
+	if manifestRoot != "" {
+		projects, err := w.loadNodeManifestProjects(manifestRoot)
 		if err != nil {
 			return nil, err
 		}
 		normal = projects
 	}
 
-	if w.nodeStrictWorkspace {
+	if w.nodeStrictWorkspace || scanRoot == "" {
 		return normal, nil
 	}
 
-	fuzzyProjects, err := w.fuzzyLoadNodeProjects()
+	fuzzyProjects, err := w.fuzzyLoadNodeProjects(scanRoot)
 	if err != nil {
 		return nil, err
 	}
@@ -399,8 +457,8 @@ func mergeProjects(normal, additional []*models.Project) []*models.Project {
 	return projects
 }
 
-func (w *Workspace) loadRootGitIgnore() (gitignore.GitIgnore, error) {
-	ignorePath := filepath.Join(w.RootPath, ".gitignore")
+func (w *Workspace) loadRootGitIgnore(rootPath string) (gitignore.GitIgnore, error) {
+	ignorePath := filepath.Join(rootPath, ".gitignore")
 	if !w.fs.Exists(ignorePath) {
 		return nil, nil
 	}
@@ -410,7 +468,7 @@ func (w *Workspace) loadRootGitIgnore() (gitignore.GitIgnore, error) {
 		return nil, fmt.Errorf("failed to read .gitignore: %w", err)
 	}
 
-	return gitignore.New(bytes.NewReader(data), w.RootPath, nil), nil
+	return gitignore.New(bytes.NewReader(data), rootPath, nil), nil
 }
 
 func nodeProjectFromPackageJSON(pkg packageJSON, rootPath, manifestPath string) *models.Project {

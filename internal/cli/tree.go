@@ -159,6 +159,9 @@ func (c *TreeCommand) Run(cmd *cobra.Command, args []string) error {
 	owner, _ := cmd.Flags().GetString("owner")
 	repo, _ := cmd.Flags().GetString("repo")
 	c.workspaceOpts = workspaceOptionsFromCmd(cmd)
+	if format == "json" {
+		c.workspaceOpts = append(c.workspaceOpts, workspace.WithWarningWriter(nil))
+	}
 
 	// Detect workspace
 	ws := workspace.New(c.fs, c.workspaceOpts...)

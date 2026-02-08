@@ -27,7 +27,7 @@ func buildWorkspace(t *testing.T, setup func(*workspace.WorkspaceBuilder)) (*wor
 	}
 
 	fs := wb.Build()
-	ws := workspace.New(fs)
+	ws := workspace.New(fs, workspace.WithGoEnv(workspace.NewMockGoEnvReader(fs)))
 	require.NoError(t, ws.Detect())
 
 	return ws, fs
