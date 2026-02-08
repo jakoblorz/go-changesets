@@ -52,6 +52,14 @@ jobs:
 
 Pinning the workflow (`@vX.Y.Z`) pins the go-changeset version used by default. You can override with the `changeset_ref` input.
 
+## Workflow steps (what and why)
+
+- Checkout with full history (`fetch-depth: 0`) so tags and file history are available.
+- Setup Go to install and run `changeset` reliably.
+- `changeset-version`: captures `changeset tree` before versioning, versions each project in a worktree to avoid cross-project churn, opens/updates PRs, links related PRs, and closes obsolete PRs.
+- `changeset-publish`: detects outdated versions (version file > tag) and publishes tags/releases.
+- `changeset-snapshot`: validates the branch, checks for changesets, then creates RC tags/releases.
+
 ## Composite actions (step-level)
 
 If you want to control setup yourself, call the composite actions inside an existing job:
@@ -65,10 +73,7 @@ These actions accept `changeset_ref`, `node_strict_workspace`, and the token inp
 ## Tokens
 
 - Defaults to existing `GITHUB_TOKEN`/`GH_TOKEN` in the job.
-- Optional inputs:
-- `version_token` - for `changeset-version`
-- `publish_token` - for `changeset-publish`
-- `snapshot_token` - for `changeset-snapshot`
+- Optional inputs: `version_token` (version PRs), `publish_token` (publish), `snapshot_token` (snapshots).
 - Use a PAT if you need PRs or releases to trigger downstream workflows.
 
 ## Notes
@@ -81,28 +86,3 @@ These actions accept `changeset_ref`, `node_strict_workspace`, and the token inp
 
 - `kitchensink/.github/workflows/changeset.yml`
 - `kitchensink/.github/workflows/snapshot.yml`
-
-## Minimal workflow outline
-
-Use `changeset each` to fan out per project (or run `changeset version` with `--project` flag to version this specific project).
-
-```bash
-# Create version updates (per project)
-changeset each --filter open-changesets -- changeset version
-
-# Publish when version file > latest tag
-export GITHUB_TOKEN=...
-changeset each --filter outdated-versions -- \
-  changeset publish --owner org --repo repo
-```
-
-## Optional helpers
-
-- `changeset tree` groups changesets by commit to coordinate multi-project releases.
-- `changeset gh pr open/link/close` can create and update release PRs.
-
-## Tokens
-
-- `GITHUB_TOKEN` is required for `publish` and `snapshot` when creating GitHub releases.
-- `GITHUB_TOKEN` is required for `changeset gh pr` commands.
-
