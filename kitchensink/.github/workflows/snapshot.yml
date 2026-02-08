@@ -28,4 +28,4 @@ jobs:
       snapshot_branch: ${{ inputs.branch || 'canary' }}
       snapshot_project: ${{ inputs.project }}
     secrets:
-      snapshot_token: ${{ secrets.CI_PAT_TO_TRIGGER_RELEASE_ACTION }}
+      snapshot_token: ${{ secrets.GITHUB_TOKEN }}
