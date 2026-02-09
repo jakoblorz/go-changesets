@@ -1,0 +1,299 @@
+name: "changeset-version"
+description: "Create per-project version PRs using go-changeset"
+inputs:
+  changeset_ref:
+    description: "go-changeset version to install (defaults to action/workflow ref or latest)"
+    required: false
+  branch_prefix:
+    description: "Branch prefix for release PRs"
+    default: "changeset-release/"
+    required: false
+  base_branch:
+    description: "Base branch for release PRs"
+    default: "main"
+    required: false
+  owner:
+    description: "GitHub repository owner override"
+    required: false
+  repo:
+    description: "GitHub repository name override"
+    required: false
+  node_strict_workspace:
+    description: "Limit Node discovery to workspace manifests"
+    default: "false"
+    required: false
+  version_token:
+    description: "Token for PR operations (defaults to existing GH_TOKEN/GITHUB_TOKEN)"
+    required: false
+  skip_install:
+    description: "Skip installing go-changeset if already available"
+    default: "false"
+    required: false
+runs:
+  using: "composite"
+  steps:
+    - name: Configure token
+      shell: bash
+      run: |
+        if [ -n "${{ inputs.version_token }}" ]; then
+          echo "GH_TOKEN=${{ inputs.version_token }}" >> "$GITHUB_ENV"
+          echo "GITHUB_TOKEN=${{ inputs.version_token }}" >> "$GITHUB_ENV"
+        fi
+
+    - name: Ensure git identity
+      shell: bash
+      run: |
+        if ! git config user.name >/dev/null; then
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+        fi
+
+    - name: Install go-changeset
+      if: ${{ inputs.skip_install != 'true' }}
+      shell: bash
+      run: |
+        ref="${{ inputs.changeset_ref }}"
+        if [ -z "$ref" ] && [ -n "${GITHUB_ACTION_REF:-}" ]; then
+          ref="$GITHUB_ACTION_REF"
+        fi
+        if [ -z "$ref" ] && [ -n "${GITHUB_WORKFLOW_REF:-}" ]; then
+          ref="${GITHUB_WORKFLOW_REF##*@}"
+        fi
+        if [ -n "$ref" ]; then
+          ref="${ref#refs/heads/}"
+          ref="${ref#refs/tags/}"
+        fi
+        if [ -z "$ref" ]; then
+          ref="latest"
+        fi
+        echo "Installing go-changeset@$ref"
+        go install "github.com/jakoblorz/go-changesets/cmd/changeset@${ref}"
+
+    - name: Prepare variables
+      shell: bash
+      run: |
+        owner="${{ inputs.owner }}"
+        repo="${{ inputs.repo }}"
+        if [ -z "$owner" ] || [ -z "$repo" ]; then
+          if [ -n "${GITHUB_REPOSITORY:-}" ]; then
+            owner="${owner:-${GITHUB_REPOSITORY%%/*}}"
+            repo="${repo:-${GITHUB_REPOSITORY#*/}}"
+          fi
+        fi
+
+        if [ -z "$owner" ] || [ -z "$repo" ]; then
+          echo "owner/repo could not be determined. Set inputs.owner and inputs.repo." >&2
+          exit 1
+        fi
+
+        echo "CHANGESET_OWNER=$owner" >> "$GITHUB_ENV"
+        echo "CHANGESET_REPO=$repo" >> "$GITHUB_ENV"
+        echo "CHANGESET_BASE_BRANCH=${{ inputs.base_branch }}" >> "$GITHUB_ENV"
+        echo "CHANGESET_BRANCH_PREFIX=${{ inputs.branch_prefix }}" >> "$GITHUB_ENV"
+        if [ "${{ inputs.node_strict_workspace }}" = "true" ]; then
+          echo "CHANGESET_NODE_ARGS=--node-strict-workspace" >> "$GITHUB_ENV"
+        else
+          echo "CHANGESET_NODE_ARGS=" >> "$GITHUB_ENV"
+        fi
+        echo "CHANGESET_TREE_FILE=/tmp/tree.json" >> "$GITHUB_ENV"
+        echo "CHANGESET_MAPPING_FILE=/tmp/pr-mapping.json" >> "$GITHUB_ENV"
+        echo "CHANGESET_WORKTREE_ROOT=${RUNNER_TEMP:-/tmp}/changeset-worktrees" >> "$GITHUB_ENV"
+
+    - name: Build changeset tree
+      shell: bash
+      run: |
+        mkdir -p "$CHANGESET_WORKTREE_ROOT"
+        changeset $CHANGESET_NODE_ARGS tree --format json --owner "$CHANGESET_OWNER" --repo "$CHANGESET_REPO" > "$CHANGESET_TREE_FILE"
+        changeset $CHANGESET_NODE_ARGS tree --filter open-changesets
+
+    - name: Create per-project PRs
+      shell: bash
+      run: |
+        if [ ! -f "$CHANGESET_MAPPING_FILE" ]; then
+          echo "No PR mapping file found, skipping link step"
+          exit 0
+        fi
+
+        changeset $CHANGESET_NODE_ARGS each --from-tree-file "$CHANGESET_TREE_FILE" --filter open-changesets -- bash -c '
+          set -euo pipefail
+
+          REPO_ROOT=$(git rev-parse --show-toplevel)
+          WORKTREE_ROOT="$CHANGESET_WORKTREE_ROOT"
+          BRANCH="${CHANGESET_BRANCH_PREFIX}${PROJECT}"
+          BASE_BRANCH="$CHANGESET_BASE_BRANCH"
+
+          mkdir -p "$WORKTREE_ROOT"
+
+          base_ref="$BASE_BRANCH"
+          if ! git -C "$REPO_ROOT" rev-parse --verify "$base_ref" >/dev/null 2>&1; then
+            base_ref="origin/$BASE_BRANCH"
+          fi
+
+          existing_path=""
+          current_path=""
+          while IFS= read -r line; do
+            case "$line" in
+              worktree\ *)
+                current_path="${line#worktree }"
+                ;;
+              branch\ refs/heads/"$BRANCH")
+                existing_path="$current_path"
+                ;;
+            esac
+          done < <(git -C "$REPO_ROOT" worktree list --porcelain)
+
+          if [ -n "$existing_path" ]; then
+            git -C "$REPO_ROOT" worktree remove --force "$existing_path"
+          fi
+
+          WORKTREE_DIR=$(mktemp -d "$WORKTREE_ROOT/${PROJECT}-XXXXXX")
+
+          cleanup() {
+            git -C "$REPO_ROOT" worktree remove --force "$WORKTREE_DIR" >/dev/null 2>&1 || true
+          }
+          trap cleanup EXIT
+
+          git -C "$REPO_ROOT" worktree add -B "$BRANCH" "$WORKTREE_DIR" "$base_ref"
+
+          cd "$WORKTREE_DIR"
+
+          changeset $CHANGESET_NODE_ARGS version --project "$PROJECT" --owner "$CHANGESET_OWNER" --repo "$CHANGESET_REPO"
+
+          if git diff --quiet && git diff --cached --quiet; then
+            echo "No changes to commit for $PROJECT"
+            exit 0
+          fi
+
+          rel_project_path="$PROJECT_PATH"
+          if [ -n "$REPO_ROOT" ] && [ "${PROJECT_PATH#"$REPO_ROOT"/}" != "$PROJECT_PATH" ]; then
+            rel_project_path="${PROJECT_PATH#"$REPO_ROOT"/}"
+          fi
+          worktree_project_path="$WORKTREE_DIR/$rel_project_path"
+
+          version="unknown"
+          if [ -f "$worktree_project_path/version.txt" ]; then
+            version=$(cat "$worktree_project_path/version.txt" | tr -d "\n")
+          elif [ -f "$worktree_project_path/package.json" ]; then
+            version=$(python3 -c "import json,sys; print(json.load(open(sys.argv[1])).get(\"version\",\"unknown\"))" "$worktree_project_path/package.json" 2>/dev/null || echo "unknown")
+          fi
+
+          git add -A
+          git commit -m "chore: version $PROJECT to $version"
+          git push -u origin "$BRANCH" --force
+
+          changeset $CHANGESET_NODE_ARGS gh pr open \
+            --owner "$CHANGESET_OWNER" \
+            --repo "$CHANGESET_REPO" \
+            --project "$PROJECT" \
+            --base "$BASE_BRANCH" \
+            --mapping-file "$CHANGESET_MAPPING_FILE"
+        '
+
+    - name: Link related PRs
+      shell: bash
+      run: |
+        changeset $CHANGESET_NODE_ARGS each --from-tree-file "$CHANGESET_TREE_FILE" --filter open-changesets -- bash -c '
+          set -euo pipefail
+
+          REPO_ROOT=$(git rev-parse --show-toplevel)
+          WORKTREE_ROOT="$CHANGESET_WORKTREE_ROOT"
+          BRANCH="${CHANGESET_BRANCH_PREFIX}${PROJECT}"
+
+          mkdir -p "$WORKTREE_ROOT"
+
+          if ! git -C "$REPO_ROOT" show-ref --verify --quiet "refs/heads/$BRANCH"; then
+            if git -C "$REPO_ROOT" show-ref --verify --quiet "refs/remotes/origin/$BRANCH"; then
+              git -C "$REPO_ROOT" branch "$BRANCH" "origin/$BRANCH"
+            else
+              echo "No local or remote branch for $BRANCH, skipping"
+              exit 0
+            fi
+          fi
+
+          existing_path=""
+          current_path=""
+          while IFS= read -r line; do
+            case "$line" in
+              worktree\ *)
+                current_path="${line#worktree }"
+                ;;
+              branch\ refs/heads/"$BRANCH")
+                existing_path="$current_path"
+                ;;
+            esac
+          done < <(git -C "$REPO_ROOT" worktree list --porcelain)
+
+          if [ -n "$existing_path" ]; then
+            git -C "$REPO_ROOT" worktree remove --force "$existing_path"
+          fi
+
+          WORKTREE_DIR=$(mktemp -d "$WORKTREE_ROOT/${PROJECT}-XXXXXX")
+
+          cleanup() {
+            git -C "$REPO_ROOT" worktree remove --force "$WORKTREE_DIR" >/dev/null 2>&1 || true
+          }
+          trap cleanup EXIT
+
+          git -C "$REPO_ROOT" worktree add "$WORKTREE_DIR" "$BRANCH"
+
+          cd "$WORKTREE_DIR"
+
+          changeset $CHANGESET_NODE_ARGS gh pr link \
+            --owner "$CHANGESET_OWNER" \
+            --repo "$CHANGESET_REPO" \
+            --project "$PROJECT" \
+            --tree-file "$CHANGESET_TREE_FILE" \
+            --mapping-file "$CHANGESET_MAPPING_FILE"
+        '
+
+    - name: Close obsolete PRs
+      shell: bash
+      run: |
+        changeset $CHANGESET_NODE_ARGS each --filter unchanged -- bash -c '
+          set -euo pipefail
+
+          REPO_ROOT=$(git rev-parse --show-toplevel)
+          WORKTREE_ROOT="$CHANGESET_WORKTREE_ROOT"
+          BRANCH="${CHANGESET_BRANCH_PREFIX}${PROJECT}"
+          BASE_BRANCH="$CHANGESET_BASE_BRANCH"
+
+          mkdir -p "$WORKTREE_ROOT"
+
+          base_ref="$BASE_BRANCH"
+          if ! git -C "$REPO_ROOT" rev-parse --verify "$base_ref" >/dev/null 2>&1; then
+            base_ref="origin/$BASE_BRANCH"
+          fi
+
+          existing_path=""
+          current_path=""
+          while IFS= read -r line; do
+            case "$line" in
+              worktree\ *)
+                current_path="${line#worktree }"
+                ;;
+              branch\ refs/heads/"$BRANCH")
+                existing_path="$current_path"
+                ;;
+            esac
+          done < <(git -C "$REPO_ROOT" worktree list --porcelain)
+
+          if [ -n "$existing_path" ]; then
+            git -C "$REPO_ROOT" worktree remove --force "$existing_path"
+          fi
+
+          WORKTREE_DIR=$(mktemp -d "$WORKTREE_ROOT/${PROJECT}-XXXXXX")
+
+          cleanup() {
+            git -C "$REPO_ROOT" worktree remove --force "$WORKTREE_DIR" >/dev/null 2>&1 || true
+          }
+          trap cleanup EXIT
+
+          git -C "$REPO_ROOT" worktree add -B "$BRANCH" "$WORKTREE_DIR" "$base_ref"
+
+          cd "$WORKTREE_DIR"
+
+          changeset $CHANGESET_NODE_ARGS gh pr close \
+            --owner "$CHANGESET_OWNER" \
+            --repo "$CHANGESET_REPO" \
+            --project "$PROJECT"
+        '

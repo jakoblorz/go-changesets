@@ -1,4 +1,4 @@
-name: Release Candidate Snapshot
+name: Snapshot
 
 on:
   workflow_dispatch:
@@ -13,132 +13,19 @@ on:
         default: "canary"
         type: string
 
-# Permissions needed for creating releases and tags
 permissions:
   contents: write
 
-# Prevent parallel snapshot creation on the same branch
 concurrency:
   group: snapshot-${{ inputs.branch || 'canary' }}
   cancel-in-progress: false
 
+
 jobs:
   snapshot:
-    name: Create RC Snapshot
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-        with:
-          ref: ${{ inputs.branch || 'canary' }}
-          fetch-depth: 0 # Need full history for git tags and ancestry
-
-      - name: Setup Go
-        uses: actions/setup-go@v4
-        with:
-          go-version: "1.24"
-
-      - name: Install go-changeset
-        run: go install github.com/jakoblorz/go-changesets/cmd/changeset@latest
-
-      - name: Validate branch
-        run: |
-          CURRENT_BRANCH=$(git branch --show-current)
-          echo "Current branch: $CURRENT_BRANCH"
-          echo "Requested branch: ${{ inputs.branch || 'canary' }}"
-
-          if [ "$CURRENT_BRANCH" != "${{ inputs.branch || 'canary' }}" ]; then
-            echo "❌ Branch mismatch! Please check the branch input."
-            exit 1
-          fi
-
-      - name: Check for changesets
-        id: check_changesets
-        run: |
-          if [ -z "${{ inputs.project }}" ]; then
-            # Check all projects - use test command to see if any match
-            if changeset each --filter open-changesets -- echo "found" 2>/dev/null | grep -q "found"; then
-              echo "has_changesets=true" >> $GITHUB_OUTPUT
-              # Count by running command that outputs project names
-              PROJECT_COUNT=$(changeset each --filter open-changesets -- bash -c 'echo $PROJECT' | wc -l)
-              echo "project_count=$PROJECT_COUNT" >> $GITHUB_OUTPUT
-              echo "Found $PROJECT_COUNT project(s) with changesets"
-            else
-              echo "has_changesets=false" >> $GITHUB_OUTPUT
-              echo "No projects with changesets found"
-            fi
-          else
-            # Check specific project
-            if [ -d ".changeset" ] && grep -r "${{ inputs.project }}:" .changeset/*.md >/dev/null 2>&1; then
-              echo "has_changesets=true" >> $GITHUB_OUTPUT
-              echo "project_count=1" >> $GITHUB_OUTPUT
-              echo "Found changesets for ${{ inputs.project }}"
-            else
-              echo "has_changesets=false" >> $GITHUB_OUTPUT
-              echo "No changesets found for ${{ inputs.project }}"
-            fi
-          fi
-
-      - name: Create snapshot (specific project)
-        if: steps.check_changesets.outputs.has_changesets == 'true' && inputs.project != ''
-        run: |
-          echo "📸 Creating snapshot for: ${{ inputs.project }}"
-
-          changeset snapshot \
-            --project "${{ inputs.project }}" \
-            --owner ${{ github.repository_owner }} \
-            --repo ${{ github.event.repository.name }}
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Create snapshot (all projects)
-        if: steps.check_changesets.outputs.has_changesets == 'true' && inputs.project == ''
-        run: |
-          echo "📸 Creating snapshots for all projects with changesets..."
-
-          changeset each --filter open-changesets -- \
-            changeset snapshot \
-              --owner ${{ github.repository_owner }} \
-              --repo ${{ github.event.repository.name }}
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Summary
-        if: steps.check_changesets.outputs.has_changesets == 'true'
-        run: |
-          echo "## 🎉 Snapshot Created" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "**Branch:** ${{ inputs.branch || 'canary' }}" >> $GITHUB_STEP_SUMMARY
-
-          if [ -n "${{ inputs.project }}" ]; then
-            echo "**Project:** ${{ inputs.project }}" >> $GITHUB_STEP_SUMMARY
-          else
-            echo "**Projects:** ${{ steps.check_changesets.outputs.project_count }}" >> $GITHUB_STEP_SUMMARY
-          fi
-
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "View pre-releases: https://github.com/${{ github.repository }}/releases" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "### What's next?" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "1. 🧪 Test the RC build" >> $GITHUB_STEP_SUMMARY
-          echo "2. 🐛 If issues found, fix and trigger another snapshot (will increment RC number)" >> $GITHUB_STEP_SUMMARY
-          echo "3. ✅ When ready, merge to main to create final release" >> $GITHUB_STEP_SUMMARY
-
-      - name: No changesets warning
-        if: steps.check_changesets.outputs.has_changesets == 'false'
-        run: |
-          echo "## ⚠️ No Changesets Found" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-
-          if [ -n "${{ inputs.project }}" ]; then
-            echo "No changesets found for project: **${{ inputs.project }}**" >> $GITHUB_STEP_SUMMARY
-          else
-            echo "No projects with changesets found on branch: **${{ inputs.branch || 'canary' }}**" >> $GITHUB_STEP_SUMMARY
-          fi
-
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "To create a snapshot:" >> $GITHUB_STEP_SUMMARY
-          echo "1. Add changesets with \`changeset add\`" >> $GITHUB_STEP_SUMMARY
-          echo "2. Commit and push to this branch" >> $GITHUB_STEP_SUMMARY
-          echo "3. Run this workflow again" >> $GITHUB_STEP_SUMMARY
+    uses: ./.github/workflows/snapshot.yml
+    with:
+      snapshot_branch: ${{ inputs.branch || 'canary' }}
+      snapshot_project: ${{ inputs.project }}
+    secrets:
+      snapshot_token: ${{ secrets.GITHUB_TOKEN }}

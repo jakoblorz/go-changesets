@@ -1,0 +1,112 @@
+name: Changesets
+
+on:
+  workflow_call:
+    inputs:
+      changeset_ref:
+        description: "go-changeset version to install"
+        required: false
+        type: string
+      branch_prefix:
+        description: "Branch prefix for release PRs"
+        required: false
+        type: string
+        default: "changeset-release/"
+      base_branch:
+        description: "Base branch for release PRs"
+        required: false
+        type: string
+        default: "main"
+      owner:
+        description: "GitHub repository owner override"
+        required: false
+        type: string
+      repo:
+        description: "GitHub repository name override"
+        required: false
+        type: string
+      node_strict_workspace:
+        description: "Limit Node discovery to workspace manifests"
+        required: false
+        type: boolean
+        default: false
+      go_version_file:
+        description: "Path to go version file"
+        required: false
+        type: string
+        default: "go.work"
+      go_version:
+        description: "Explicit Go version (overrides go_version_file)"
+        required: false
+        type: string
+    secrets:
+      version_token:
+        required: false
+      publish_token:
+        required: false
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  version:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Go (version)
+        if: ${{ inputs.go_version != '' }}
+        uses: actions/setup-go@v4
+        with:
+          go-version: ${{ inputs.go_version }}
+
+      - name: Setup Go (version file)
+        if: ${{ inputs.go_version == '' }}
+        uses: actions/setup-go@v4
+        with:
+          go-version-file: ${{ inputs.go_version_file }}
+
+      - name: Create version PRs
+        uses: jakoblorz/go-changesets/.github/actions/changeset-version@8ad4ec3a59f4f3de5ba75b8bb2b30f116e3be7df
+        with:
+          changeset_ref: ${{ inputs.changeset_ref }}
+          branch_prefix: ${{ inputs.branch_prefix }}
+          base_branch: ${{ inputs.base_branch }}
+          owner: ${{ inputs.owner }}
+          repo: ${{ inputs.repo }}
+          node_strict_workspace: ${{ inputs.node_strict_workspace }}
+          version_token: ${{ secrets.version_token }}
+
+  publish:
+    runs-on: ubuntu-latest
+    needs: version
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Go (version)
+        if: ${{ inputs.go_version != '' }}
+        uses: actions/setup-go@v4
+        with:
+          go-version: ${{ inputs.go_version }}
+
+      - name: Setup Go (version file)
+        if: ${{ inputs.go_version == '' }}
+        uses: actions/setup-go@v4
+        with:
+          go-version-file: ${{ inputs.go_version_file }}
+
+      - name: Publish releases
+        uses: jakoblorz/go-changesets/.github/actions/changeset-publish@8ad4ec3a59f4f3de5ba75b8bb2b30f116e3be7df
+        with:
+          changeset_ref: ${{ inputs.changeset_ref }}
+          owner: ${{ inputs.owner }}
+          repo: ${{ inputs.repo }}
+          node_strict_workspace: ${{ inputs.node_strict_workspace }}
+          publish_token: ${{ secrets.publish_token }}
