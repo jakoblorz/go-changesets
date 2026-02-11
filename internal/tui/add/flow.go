@@ -141,13 +141,12 @@ func (f *Flow) selectProjects() ([]string, error) {
 	keyMap.MultiSelect.Toggle.SetKeys(" ")
 	keyMap.MultiSelect.Toggle.SetHelp("space", "toggle selection")
 	keyMap.MultiSelect.Submit.SetKeys("enter")
-	keyMap.MultiSelect.Submit.SetHelp("enter", "continue")
+	keyMap.MultiSelect.Submit.SetHelp("enter", "select and continue")
 
 	form := huh.NewForm(
 		huh.NewGroup(
-			huh.NewMultiSelect[string]().
-				Options(opts...).
-				Value(&selected),
+			newProjectMultiSelect(&selected).
+				Options(opts...),
 		).
 			Title("Project Selection").
 			Description("Select projects to include."),
