@@ -39,6 +39,8 @@ func (p *projectMultiSelect) KeyBinds() []key.Binding {
 	helpDesc := "continue"
 	if p.selectedCount() == 0 {
 		helpDesc = "select and continue"
+	} else if value, ok := p.MultiSelect.Hovered(); ok && !p.IsSelected(value) {
+		helpDesc = "select and continue"
 	}
 
 	submitKeys := p.keymap.MultiSelect.Submit.Keys()
@@ -69,16 +71,14 @@ func (p *projectMultiSelect) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	if p.keymap != nil {
 		if keyMsg, ok := msg.(tea.KeyMsg); ok && key.Matches(keyMsg, p.keymap.MultiSelect.Submit) {
-			if p.selectedCount() == 0 {
-				if _, ok := p.MultiSelect.Hovered(); ok {
-					toggleMsg, ok := keyMsgForBinding(p.keymap.MultiSelect.Toggle)
-					if !ok {
-						toggleMsg = tea.KeyMsg{Type: tea.KeySpace, Runes: []rune{' '}}
-					}
-					model, cmd := p.MultiSelect.Update(toggleMsg)
-					p.MultiSelect = model.(*huh.MultiSelect[string])
-					cmds = append(cmds, cmd)
+			if value, ok := p.MultiSelect.Hovered(); ok && !p.IsSelected(value) {
+				toggleMsg, ok := keyMsgForBinding(p.keymap.MultiSelect.Toggle)
+				if !ok {
+					toggleMsg = tea.KeyMsg{Type: tea.KeySpace, Runes: []rune{' '}}
 				}
+				model, cmd := p.MultiSelect.Update(toggleMsg)
+				p.MultiSelect = model.(*huh.MultiSelect[string])
+				cmds = append(cmds, cmd)
 			}
 		}
 	}
@@ -134,6 +134,19 @@ func (p *projectMultiSelect) selectedCount() int {
 		return 0
 	}
 	return len(value)
+}
+
+func (p *projectMultiSelect) IsSelected(value string) bool {
+	values, ok := p.MultiSelect.GetValue().([]string)
+	if !ok {
+		return false
+	}
+	for i := range values {
+		if values[i] == value {
+			return true
+		}
+	}
+	return false
 }
 
 func bindingHasKeys(binding key.Binding, keys []string) bool {
