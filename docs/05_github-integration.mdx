@@ -5,7 +5,7 @@ description: Automate version PRs and GitHub releases.
 
 # GitHub Actions Integration
 
-go-changeset keeps CI low-tech and repo-specific. It provides stable primitives for versioning and publishing; you decide how to wire them into workflows.
+go-changeset keeps CI low-tech and repo-specific. It provides stable primitives for versioning and publishing; you decide how to wire them.
 
 ## Release model (two-phase)
 
@@ -17,29 +17,70 @@ go-changeset keeps CI low-tech and repo-specific. It provides stable primitives 
    - Compare version file to latest tag.
    - Create a tag and (optionally) a GitHub release.
 
-## Minimal workflow outline
+## Reusable workflows (recommended)
 
-Use `changeset each` to fan out per project (or run `changeset version` with `--project` flag to version this specific project).
+This repo ships reusable workflows:
 
-```bash
-# Create version updates (per project)
-changeset each --filter open-changesets -- changeset version
+- `.github/workflows/changesets.yml` - version PRs + publish
+- `.github/workflows/snapshot.yml` - RC snapshot tags
 
-# Publish when version file > latest tag
-export GITHUB_TOKEN=...
-changeset each --filter outdated-versions -- \
-  changeset publish --owner org --repo repo
+Example:
+
+```yaml
+jobs:
+  changesets:
+    uses: jakoblorz/go-changesets/.github/workflows/changesets.yml@vX.Y.Z
+    with:
+      base_branch: main
+    secrets:
+      version_token: ${{ secrets.CI_PAT }}
+      publish_token: ${{ secrets.CI_PAT }}
 ```
 
-## Optional helpers
+Snapshot example:
 
-- `changeset tree` groups changesets by commit to coordinate multi-project releases.
-- `changeset gh pr open/link/close` can create and update release PRs.
+```yaml
+jobs:
+  snapshot:
+    uses: jakoblorz/go-changesets/.github/workflows/snapshot.yml@vX.Y.Z
+    with:
+      snapshot_branch: canary
+      snapshot_project: ""
+    secrets:
+      snapshot_token: ${{ secrets.CI_PAT }}
+```
+
+Pinning the workflow (`@vX.Y.Z`) pins the go-changeset version used by default. You can override with the `changeset_ref` input.
+
+## Workflow steps (what and why)
+
+- Checkout with full history (`fetch-depth: 0`) so tags and file history are available.
+- Setup Go to install and run `changeset` reliably.
+- `changeset-version`: captures `changeset tree` before versioning, versions each project in a worktree to avoid cross-project churn, opens/updates PRs, links related PRs, and closes obsolete PRs.
+- `changeset-publish`: detects outdated versions (version file > tag) and publishes tags/releases.
+- `changeset-snapshot`: validates the branch, checks for changesets, then creates RC tags/releases.
+
+## Composite actions (step-level)
+
+If you want to control setup yourself, call the composite actions inside an existing job:
+
+- `.github/actions/changeset-version`
+- `.github/actions/changeset-publish`
+- `.github/actions/changeset-snapshot`
+
+These actions accept `changeset_ref`, `node_strict_workspace`, and the token inputs below.
 
 ## Tokens
 
-- `GITHUB_TOKEN` is required for `publish` and `snapshot` when creating GitHub releases.
-- `GH_TOKEN` (or `GITHUB_TOKEN`) is required for `changeset gh pr` commands.
+- Defaults to existing `GITHUB_TOKEN`/`GH_TOKEN` in the job.
+- Optional inputs: `version_token` (version PRs), `publish_token` (publish), `snapshot_token` (snapshots).
+- Use a PAT if you need PRs or releases to trigger downstream workflows.
+
+## Notes
+
+- Use `actions/checkout` with `fetch-depth: 0` so tags and history are available.
+- Configure git identity if your job creates commits.
+- The version workflow uses git worktrees for isolation.
 
 ## Full examples
 

@@ -54,6 +54,26 @@ changeset each --filter=outdated-versions -- \
   changeset publish --owner <org> --repo <repo>
 ```
 
+### GitHub Actions
+
+Reusable workflows and composite actions ship with this repo:
+
+- `.github/workflows/changesets.yml` (version PRs + publish)
+- `.github/workflows/snapshot.yml` (RC snapshots)
+
+Example usage:
+
+```yaml
+jobs:
+  changesets:
+    uses: jakoblorz/go-changesets/.github/workflows/changesets.yml@vX.Y.Z
+    secrets:
+      version_token: ${{ secrets.CI_PAT }}
+      publish_token: ${{ secrets.CI_PAT }}
+```
+
+Tokens are optional; the workflows use `GITHUB_TOKEN`/`GH_TOKEN` if provided by the job.
+
 ## Documentation
 
 Extended guides live in `docs/`:

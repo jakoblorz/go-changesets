@@ -1,0 +1,79 @@
+name: Snapshot
+
+on:
+  workflow_call:
+    inputs:
+      changeset_ref:
+        description: "go-changeset version to install"
+        required: false
+        type: string
+      snapshot_branch:
+        description: "Branch to create snapshot from"
+        required: false
+        type: string
+        default: "canary"
+      snapshot_project:
+        description: "Project name (leave empty for all projects with changesets)"
+        required: false
+        type: string
+      owner:
+        description: "GitHub repository owner override"
+        required: false
+        type: string
+      repo:
+        description: "GitHub repository name override"
+        required: false
+        type: string
+      node_strict_workspace:
+        description: "Limit Node discovery to workspace manifests"
+        required: false
+        type: boolean
+        default: false
+      go_version_file:
+        description: "Path to go version file"
+        required: false
+        type: string
+        default: "go.work"
+      go_version:
+        description: "Explicit Go version (overrides go_version_file)"
+        required: false
+        type: string
+    secrets:
+      snapshot_token:
+        required: false
+
+permissions:
+  contents: write
+
+jobs:
+  snapshot:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.snapshot_branch }}
+          fetch-depth: 0
+
+      - name: Setup Go (version)
+        if: ${{ inputs.go_version != '' }}
+        uses: actions/setup-go@v4
+        with:
+          go-version: ${{ inputs.go_version }}
+
+      - name: Setup Go (version file)
+        if: ${{ inputs.go_version == '' }}
+        uses: actions/setup-go@v4
+        with:
+          go-version-file: ${{ inputs.go_version_file }}
+
+      - name: Create snapshot
+        uses: jakoblorz/go-changesets/.github/actions/changeset-snapshot@8ad4ec3a59f4f3de5ba75b8bb2b30f116e3be7df
+        with:
+          changeset_ref: ${{ inputs.changeset_ref }}
+          snapshot_branch: ${{ inputs.snapshot_branch }}
+          snapshot_project: ${{ inputs.snapshot_project }}
+          owner: ${{ inputs.owner }}
+          repo: ${{ inputs.repo }}
+          node_strict_workspace: ${{ inputs.node_strict_workspace }}
+          snapshot_token: ${{ secrets.snapshot_token }}
